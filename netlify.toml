@@ -1,0 +1,66 @@
+# ============================================================
+# Configuration de déploiement Netlify — SantéConnect Togo
+# Créé pour Ridwane Issifou
+# ============================================================
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Plugin officiel Next.js pour Netlify
+# (gère automatiquement le SSR, les API routes /app/api/*, et l'ISR)
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# ============================================================
+# Domaine dédié SikaStock : sikastock.tg
+# Quand ce domaine pointe vers ce site, la racine sert SikaStock
+# (les API, assets et la connexion restent partagés).
+# ============================================================
+[[redirects]]
+  from = "/api/*"
+  to = "/api/:splat"
+  status = 200
+  conditions = {Host = ["sikastock.tg", "www.sikastock.tg", "sikastock.netlify.app", "sikastock-togo.netlify.app", "sikastocktg.netlify.app"]}
+
+[[redirects]]
+  from = "/_next/*"
+  to = "/_next/:splat"
+  status = 200
+  conditions = {Host = ["sikastock.tg", "www.sikastock.tg", "sikastock.netlify.app", "sikastock-togo.netlify.app", "sikastocktg.netlify.app"]}
+
+[[redirects]]
+  from = "/login"
+  to = "/login"
+  status = 200
+  conditions = {Host = ["sikastock.tg", "www.sikastock.tg", "sikastock.netlify.app", "sikastock-togo.netlify.app", "sikastocktg.netlify.app"]}
+
+[[redirects]]
+  from = "/dashboard/*"
+  to = "/dashboard/:splat"
+  status = 200
+  conditions = {Host = ["sikastock.tg", "www.sikastock.tg", "sikastock.netlify.app", "sikastock-togo.netlify.app", "sikastocktg.netlify.app"]}
+
+[[redirects]]
+  from = "/*"
+  to = "/sika/:splat"
+  status = 200
+  conditions = {Host = ["sikastock.tg", "www.sikastock.tg", "sikastock.netlify.app", "sikastock-togo.netlify.app", "sikastocktg.netlify.app"]}
+
+# En-têtes de sécurité recommandés pour une app médicale
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-XSS-Protection = "1; mode=block"
+
+# NOTE IMPORTANTE :
+# Les variables DATABASE_URL et JWT_SECRET ne doivent JAMAIS être
+# écrites ici. Configurez-les dans l'interface Netlify :
+#   Site settings > Environment variables
+# (voir README.md pour les valeurs exactes)
