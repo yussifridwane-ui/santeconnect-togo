@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DigiTogo — Produits Digitaux Premium</title>
+<meta name="description" content="Ebooks, guides, modèles et formations digitales pour réussir au Togo. Paiement Mixx by Yas, livraison WhatsApp.">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#f8fafc;color:#0f172a}
+.hero{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;padding:56px 20px 64px;text-align:center}
+.hero h1{font-size:2.2rem;font-weight:800}
+.hero p{margin-top:12px;opacity:.92;max-width:560px;margin-left:auto;margin-right:auto}
+.badge{display:inline-block;background:rgba(255,255,255,.18);padding:6px 14px;border-radius:999px;font-size:.8rem;font-weight:600;margin-bottom:16px}
+.wrap{max-width:1000px;margin:-32px auto 40px;padding:0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.card{background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.06);display:flex;flex-direction:column}
+.emoji{font-size:2rem}
+.card h3{margin:10px 0 6px;font-size:1.05rem}
+.card p{font-size:.85rem;color:#64748b;flex:1}
+.price{font-size:1.3rem;font-weight:800;color:#4f46e5;margin:12px 0}
+.btn{border:none;background:#4f46e5;color:#fff;padding:12px;border-radius:12px;font-weight:700;cursor:pointer;font-size:.95rem}
+.btn:hover{background:#4338ca}
+.btn-wa{background:#25D366}
+.btn-wa:hover{background:#1ebe5b}
+.club{margin:40px 0;background:linear-gradient(135deg,#059669,#0d9488);color:#fff;border-radius:22px;padding:28px;display:flex;flex-wrap:wrap;gap:20px;align-items:center;justify-content:space-between}
+.club h2{font-size:1.5rem}
+.club .p{font-size:1.8rem;font-weight:800}
+.overlay{position:fixed;inset:0;background:rgba(15,23,42,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+.overlay.open{display:flex}
+.modal{background:#fff;border-radius:22px;max-width:480px;width:100%;max-height:92vh;overflow-y:auto;padding:24px}
+.modal h3{margin-bottom:4px}
+.sub{color:#64748b;font-size:.85rem;margin-bottom:16px}
+.amount{background:#eef2ff;border-radius:14px;padding:14px;text-align:center;font-size:1.4rem;font-weight:800;color:#4f46e5;margin-bottom:16px}
+.paybox{border:2px solid #0d9488;background:#f0fdfa;border-radius:14px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+.paybox b{color:#0d9488}
+.steps{background:#f8fafc;border-radius:14px;padding:16px;margin-bottom:16px}
+.steps li{margin:8px 0 8px 18px;font-size:.88rem}
+.steps b{color:#4f46e5}
+input{width:100%;padding:11px;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:10px;font-size:.95rem}
+label{font-size:.8rem;font-weight:600;color:#475569;display:block;margin-bottom:4px}
+.close{float:right;background:none;border:none;font-size:1.4rem;cursor:pointer;color:#94a3b8}
+.ok{background:#ecfdf5;border:1.5px solid #6ee7b7;color:#065f46;border-radius:14px;padding:14px;font-size:.9rem;margin-top:12px;display:none}
+footer{background:#0f172a;color:#94a3b8;text-align:center;padding:28px 16px;font-size:.85rem}
+footer b{color:#fff}
+</style>
+</head>
+<body>
+<header class="hero">
+  <span class="badge">🇹🇬 100% Togo · Livraison WhatsApp</span>
+  <h1>DigiTogo</h1>
+  <p>Produits digitaux premium pour entreprendre, vendre et réussir : ebooks, modèles, packs et formations. Payez par <b>Mixx by Yas</b>, recevez sur WhatsApp en 5 à 15 minutes.</p>
+</header>
+<main class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="club">
+    <div>
+      <h2>⭐ Club DigiTogo</h2>
+      <p style="margin-top:6px;opacity:.95">Tous les produits + toutes les nouveautés, chaque mois. Résiliable à tout moment.</p>
+    </div>
+    <div style="text-align:right">
+      <div class="p">5 000 F <small style="font-size:.8rem;font-weight:500">/ mois</small></div>
+      <button class="btn" style="background:#fff;color:#059669;margin-top:8px" onclick="openOrder('club')">Rejoindre le Club</button>
+    </div>
+  </div>
+</main>
+<footer>
+  <p><b>DigiTogo Shop</b> — Produits digitaux premium au Togo</p>
+  <p style="margin-top:6px">Support & paiements Mixx by Yas : <b>+228 71 69 24 01</b></p>
+</footer>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <button class="close" onclick="closeOrder()">&times;</button>
+    <h3 id="m-title">Commander</h3>
+    <p class="sub">Payez par Mixx by Yas puis confirmez sur WhatsApp : le produit arrive en 5 à 15 minutes.</p>
+    <div class="amount" id="m-amount"></div>
+    <div class="paybox">📱 Paiement : <b>Mixx by Yas (T-Money)</b></div>
+    <div class="steps">
+      <b>Numéro receveur : +228 71 69 24 01 (DigiTogo Shop)</b>
+      <ol id="m-steps"></ol>
+    </div>
+    <form id="order-form" onsubmit="submitOrder(event)">
+      <input type="hidden" name="produit" id="f-produit">
+      <input type="hidden" name="montant" id="f-montant">
+      <label>Votre nom complet *</label>
+      <input required id="f-nom" placeholder="Ex : Yao Mensah">
+      <label>Votre numéro de téléphone *</label>
+      <input required id="f-tel" placeholder="+228 ...">
+      <label>Votre WhatsApp (pour recevoir le produit) *</label>
+      <input required id="f-wa" placeholder="+228 ...">
+      <label>Numéro de transaction (reçu SMS) *</label>
+      <input required id="f-tx" placeholder="Ex : 240815123456">
+      <button class="btn btn-wa" type="submit" style="width:100%">💬 J'ai payé — confirmer sur WhatsApp</button>
+    </form>
+    <div class="ok" id="ok">🎉 Merci ! Votre message WhatsApp s'est ouvert avec les détails de la commande. Dès confirmation du paiement, votre produit arrive sur votre WhatsApp (5 à 15 min).</div>
+  </div>
+</div>
+
+<script>
+const NUMBER = "+228 71 69 24 01";
+const WA = "22871692401";
+const PRODUCTS = [
+  {id:"p1", emoji:"📘", name:"50 business rentables au Togo", desc:"Ebook de 80 pages : idées concrètes, budgets de départ et conseils pour se lancer.", price:3000},
+  {id:"p2", emoji:"💼", name:"Pack CV + Lettres de motivation", desc:"10 modèles professionnels modifiables (Word & Canva) qui décrochent des entretiens.", price:2000},
+  {id:"p3", emoji:"📱", name:"Guide WhatsApp Business", desc:"Transformez WhatsApp en machine à vendre : statut, catalogue, scripts de vente.", price:5000},
+  {id:"p4", emoji:"🎨", name:"Pack 200 visuels Canva", desc:"200 modèles de publications pour boutiques : promos, arrivages, fêtes.", price:4000},
+  {id:"p5", emoji:"💰", name:"Maîtriser Mixx by Yas pour son commerce", desc:"Guide complet pour encaisser, payer et sécuriser son commerce mobile.", price:2500},
+  {id:"p6", emoji:"🎓", name:"Formation vidéo : boutique en ligne", desc:"1h de vidéo pas-à-pas pour créer et gérer votre boutique en ligne au Togo.", price:10000},
+  {id:"p7", emoji:"📊", name:"Modèles Excel de gestion", desc:"Stock, caisse, bénéfices : 5 fichiers prêts à l'emploi pour votre commerce.", price:3500},
+  {id:"p8", emoji:"🧠", name:"Réussir son entretien d'embauche", desc:"Méthode + 60 questions fréquentes au Togo avec réponses modèles.", price:2000}
+];
+const CLUB = {id:"club", name:"Club DigiTogo (abonnement mensuel)", price:5000};
+const grid = document.getElementById("grid");
+PRODUCTS.forEach(function(p){
+  grid.insertAdjacentHTML("beforeend", '<div class="card"><div class="emoji">'+p.emoji+'</div><h3>'+p.name+'</h3><p>'+p.desc+'</p><div class="price">'+p.price.toLocaleString("fr-FR")+' F</div><button class="btn" onclick="openOrder(\''+p.id+'\')">Commander</button></div>');
+});
+let current = null;
+function find(id){ return id==="club" ? CLUB : PRODUCTS.find(function(p){return p.id===id;}); }
+function openOrder(id){
+  current = find(id);
+  document.getElementById("m-title").textContent = current.name;
+  document.getElementById("m-amount").textContent = current.price.toLocaleString("fr-FR") + " F CFA";
+  document.getElementById("f-produit").value = current.name;
+  document.getElementById("f-montant").value = current.price + " F CFA";
+  document.getElementById("ok").style.display = "none";
+  document.getElementById("order-form").style.display = "block";
+  document.getElementById("m-steps").innerHTML = [
+    "Composez <b>*145#</b> puis appuyez sur Appel",
+    "Sélectionnez <b>Envoyer de l'argent</b>",
+    "Saisissez le numéro : <b>"+NUMBER+"</b>",
+    "Saisissez le montant exact : <b>"+current.price.toLocaleString("fr-FR")+" F CFA</b>",
+    "Validez avec votre code PIN Mixx by Yas",
+    "Notez le n° de transaction reçu par SMS puis confirmez ci-dessous"
+  ].map(function(s){return "<li>"+s+"</li>";}).join("");
+  document.getElementById("overlay").classList.add("open");
+}
+function closeOrder(){ document.getElementById("overlay").classList.remove("open"); }
+function submitOrder(e){
+  e.preventDefault();
+  const nom = document.getElementById("f-nom").value;
+  const tel = document.getElementById("f-tel").value;
+  const wa  = document.getElementById("f-wa").value;
+  const tx  = document.getElementById("f-tx").value;
+  const msg = "🛒 NOUVELLE COMMANDE DIGITOGO\n\n📦 Produit : " + current.name +
+    "\n💰 Montant payé : " + current.price.toLocaleString("fr-FR") + " F CFA" +
+    "\n👤 Nom : " + nom + "\n📞 Téléphone : " + tel +
+    "\n💬 WhatsApp client : " + wa + "\n🧾 N° transaction Mixx : " + tx +
+    "\n\nMerci de m'envoyer mon produit sur WhatsApp. 🙏";
+  window.open("https://wa.me/" + WA + "?text=" + encodeURIComponent(msg), "_blank");
+  document.getElementById("order-form").style.display = "none";
+  document.getElementById("ok").style.display = "block";
+}
+</script>
+</body>
+</html>

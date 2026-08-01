@@ -1,0 +1,29 @@
+# Dépendances
+/node_modules
+/.pnp
+.pnp.js
+
+# Builds Next.js
+/.next/
+/out/
+/build
+
+# Variables d'environnement locales (JAMAIS sur GitHub)
+.env
+.env*.local
+.env.local
+
+# Divers
+.DS_Store
+*.pem
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Vercel / Netlify
+.vercel
+.netlify
+
+# TypeScript
+*.tsbuildinfo
