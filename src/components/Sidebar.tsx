@@ -20,6 +20,7 @@ import {
   CreditCard,
   Zap,
   ShieldCheck,
+  Microscope,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -71,6 +72,12 @@ const navItems = [
     icon: Zap,
     href: "/dashboard/automation",
     roles: ["admin"],
+  },
+  {
+    label: "Examens",
+    icon: Microscope,
+    href: "/dashboard/examens",
+    roles: ["admin", "doctor", "nurse", "secretary", "pharmacist", "lab"],
   },
   {
     label: "Journal de sécurité",

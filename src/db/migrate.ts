@@ -1,4 +1,6 @@
 import { pool } from "@/db";
+import { EXAM_SEED } from "@/db/exam-seed";
+import { QUIZ_SEED, CASE_SEED } from "@/db/quiz-seed";
 
 /**
  * Migrations idempotentes SantéOnline — 100 % ADDITIVES.
@@ -244,6 +246,69 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read)`,
   `CREATE INDEX IF NOT EXISTS idx_documents_patient ON documents(patient_id)`,
   `CREATE INDEX IF NOT EXISTS idx_audit_facility ON audit_log(facility_id, created_at DESC)`,
+
+  /* ---------- Module pédagogique « Examens paracliniques » (bibliothèque globale) ---------- */
+  `CREATE TABLE IF NOT EXISTS exam_library (
+    id serial PRIMARY KEY,
+    slug varchar(80) NOT NULL UNIQUE,
+    name varchar(160) NOT NULL,
+    category varchar(40) NOT NULL,
+    status varchar(20) NOT NULL DEFAULT 'published',
+    definition text,
+    objective text,
+    indications text,
+    contraindications text,
+    preparation text,
+    procedure_text text,
+    materials text,
+    parameters text,
+    reference_values text,
+    interpretation text,
+    anomalies text,
+    limitations text,
+    references_text text,
+    updated_on date,
+    created_by integer,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS exam_favorites (
+    user_id integer NOT NULL,
+    exam_id integer NOT NULL REFERENCES exam_library(id) ON DELETE CASCADE,
+    created_at timestamp NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, exam_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS exam_history (
+    id serial PRIMARY KEY,
+    user_id integer NOT NULL,
+    exam_id integer NOT NULL REFERENCES exam_library(id) ON DELETE CASCADE,
+    viewed_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS exam_quiz (
+    id serial PRIMARY KEY,
+    category varchar(40) NOT NULL,
+    question text NOT NULL,
+    options text NOT NULL,
+    correct_index integer NOT NULL,
+    explanation text,
+    exam_slug varchar(80),
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS exam_cases (
+    id serial PRIMARY KEY,
+    slug varchar(80) NOT NULL UNIQUE,
+    title varchar(200) NOT NULL,
+    category varchar(40) NOT NULL,
+    vignette text NOT NULL,
+    question text NOT NULL,
+    options text NOT NULL,
+    correct_index integer NOT NULL,
+    analysis text NOT NULL,
+    exam_slug varchar(80),
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_exam_history_user ON exam_history(user_id, viewed_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_exam_library_category ON exam_library(category, status)`,
 ];
 
 let migrating: Promise<void> | null = null;
@@ -261,9 +326,42 @@ export function ensureMigrated(): Promise<void> {
         }
       }
       console.log("[migrate] ✅ schéma SantéOnline v2 prêt");
+      await seedExamModule();
     })().catch((e) => {
       console.error("[migrate] échec global (non bloquant):", e);
     });
   }
   return migrating;
+}
+
+/** Contenu de référence du module Examens — inséré une seule fois (ON CONFLICT DO NOTHING). */
+async function seedExamModule(): Promise<void> {
+  for (const ex of EXAM_SEED) {
+    await pool.query(
+      `INSERT INTO exam_library (slug, name, category, status, definition, objective, indications, contraindications,
+        preparation, procedure_text, materials, parameters, reference_values, interpretation, anomalies, limitations,
+        references_text, updated_on)
+       VALUES ($1,$2,$3,'published',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+       ON CONFLICT (slug) DO NOTHING`,
+      [ex.slug, ex.name, ex.category, ex.definition, ex.objective, ex.indications, ex.contraindications,
+        ex.preparation, ex.procedureText, ex.materials, ex.parameters, ex.referenceValues, ex.interpretation,
+        ex.anomalies, ex.limitations, ex.references, ex.updatedOn],
+    );
+  }
+  for (const q of QUIZ_SEED) {
+    await pool.query(
+      `INSERT INTO exam_quiz (category, question, options, correct_index, explanation, exam_slug)
+       SELECT $1,$2,$3,$4,$5,$6 WHERE NOT EXISTS (SELECT 1 FROM exam_quiz WHERE question = $2 LIMIT 1)`,
+      [q.category, q.question, JSON.stringify(q.options), q.correctIndex, q.explanation, q.examSlug || null],
+    );
+  }
+  for (const c of CASE_SEED) {
+    await pool.query(
+      `INSERT INTO exam_cases (slug, title, category, vignette, question, options, correct_index, analysis, exam_slug)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       ON CONFLICT (slug) DO NOTHING`,
+      [c.slug, c.title, c.category, c.vignette, c.question, JSON.stringify(c.options), c.correctIndex, c.analysis, c.examSlug || null],
+    );
+  }
+  console.log(`[migrate] 📚 bibliothèque examens : ${EXAM_SEED.length} fiches, ${QUIZ_SEED.length} QCM, ${CASE_SEED.length} cas cliniques`);
 }

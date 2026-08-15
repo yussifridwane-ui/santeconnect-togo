@@ -7,6 +7,8 @@ import {
   boolean,
   integer,
   numeric,
+  date,
+  primaryKey,
   pgEnum,
 } from "drizzle-orm/pg-core";
 
@@ -469,5 +471,73 @@ export const auditLog = pgTable("audit_log", {
   entity: varchar("entity", { length: 40 }).notNull(),
   entityId: integer("entity_id"),
   detail: text("detail"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+/* ─────────── Module pédagogique « Examens paracliniques » (bibliothèque globale) ─────────── */
+export const examLibrary = pgTable("exam_library", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 80 }).notNull().unique(),
+  name: varchar("name", { length: 160 }).notNull(),
+  category: varchar("category", { length: 40 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("published"),
+  definition: text("definition"),
+  objective: text("objective"),
+  indications: text("indications"),
+  contraindications: text("contraindications"),
+  preparation: text("preparation"),
+  procedureText: text("procedure_text"),
+  materials: text("materials"),
+  parameters: text("parameters"),
+  referenceValues: text("reference_values"),
+  interpretation: text("interpretation"),
+  anomalies: text("anomalies"),
+  limitations: text("limitations"),
+  referencesText: text("references_text"),
+  updatedOn: date("updated_on"),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const examFavorites = pgTable(
+  "exam_favorites",
+  {
+    userId: integer("user_id").notNull(),
+    examId: integer("exam_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.examId] })]
+);
+
+export const examHistory = pgTable("exam_history", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  examId: integer("exam_id").notNull(),
+  viewedAt: timestamp("viewed_at").notNull().defaultNow(),
+});
+
+export const examQuiz = pgTable("exam_quiz", {
+  id: serial("id").primaryKey(),
+  category: varchar("category", { length: 40 }).notNull(),
+  question: text("question").notNull(),
+  options: text("options").notNull(),
+  correctIndex: integer("correct_index").notNull(),
+  explanation: text("explanation"),
+  examSlug: varchar("exam_slug", { length: 80 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const examCases = pgTable("exam_cases", {
+  id: serial("id").primaryKey(),
+  slug: varchar("slug", { length: 80 }).notNull().unique(),
+  title: varchar("title", { length: 200 }).notNull(),
+  category: varchar("category", { length: 40 }).notNull(),
+  vignette: text("vignette").notNull(),
+  question: text("question").notNull(),
+  options: text("options").notNull(),
+  correctIndex: integer("correct_index").notNull(),
+  analysis: text("analysis").notNull(),
+  examSlug: varchar("exam_slug", { length: 80 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
