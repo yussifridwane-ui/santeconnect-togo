@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { ensureMigrated } from "@/db/migrate";
 import { audit } from "@/lib/audit";
+import { verifyDossierToken } from "@/lib/dossier";
 
 /** GET — fiche complète d'un patient (traçée dans le journal de sécurité) */
 export async function GET(
@@ -37,6 +38,14 @@ export async function GET(
     if (session.role === "patient" && row.patient.userId !== session.id) {
       await audit(session, { action: "refus", entity: "patient", entityId: row.patient.id, patientId: row.patient.id, detail: "Tentative d'accès au dossier d'un autre patient" });
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+    }
+    // V2.2 : même pour SON dossier, le patient doit avoir tapé son CODE (style T-Money)
+    if (session.role === "patient") {
+      const ok = await verifyDossierToken(request, row.patient.id, session.id);
+      if (!ok) {
+        await audit(session, { action: "refus", entity: "dossier", entityId: row.patient.id, patientId: row.patient.id, detail: "Lecture du dossier patient sans jeton de code valide" });
+        return NextResponse.json({ error: "Code du dossier requis", needCode: true }, { status: 403 });
+      }
     }
     if (session.role !== "patient" && row.patient.facilityId !== facilityId) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 });

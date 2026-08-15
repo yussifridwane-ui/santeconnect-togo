@@ -309,6 +309,12 @@ const STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_exam_history_user ON exam_history(user_id, viewed_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_exam_library_category ON exam_library(category, status)`,
+
+  /* ---------- V2.2 : CODE DOSSIER PATIENT (style T-Money — jamais en clair) ---------- */
+  `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dossier_code_hash varchar(255)`,
+  `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dossier_code_set_at timestamp`,
+  `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dossier_fails integer NOT NULL DEFAULT 0`,
+  `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dossier_locked_until timestamp`,
 ];
 
 let migrating: Promise<void> | null = null;

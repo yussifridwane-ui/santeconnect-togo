@@ -65,6 +65,11 @@ export const patients = pgTable("patients", {
   emergencyPhone: varchar("emergency_phone", { length: 50 }),
   insuranceNumber: varchar("insurance_number", { length: 100 }),
   medicalNotes: text("medical_notes"),
+  // 🔑 Code dossier patient (V2.2, style T-Money) — haché bcrypt, JAMAIS en clair
+  dossierCodeHash: varchar("dossier_code_hash", { length: 255 }),
+  dossierCodeSetAt: timestamp("dossier_code_set_at"),
+  dossierFails: integer("dossier_fails").notNull().default(0),
+  dossierLockedUntil: timestamp("dossier_locked_until"),
   /* ===== Fiche patient complète — SantéOnline v2 (toutes colonnes facultatives) ===== */
   recordNumber: varchar("record_number", { length: 40 }), // N° dossier unique (DOS-…)
   firstName: varchar("first_name", { length: 120 }),

@@ -65,6 +65,18 @@ export async function GET(request: NextRequest) {
       patientPhone: a.patientId ? patientPhoneMap.get(a.patientId) || null : null,
     }));
 
+    // V2.2 — CONFIDENTIALITÉ : un patient ne voit que SES rendez-vous, jamais ceux des autres
+    if (session.role === "patient") {
+      const me = await db
+        .select({ id: patients.id })
+        .from(patients)
+        .where(eq(patients.userId, session.id))
+        .limit(1);
+      if (me.length === 0) return NextResponse.json([]);
+      const myPid = me[0].id;
+      result = result.filter((a) => a.patientId === myPid);
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Get appointments error:", error);

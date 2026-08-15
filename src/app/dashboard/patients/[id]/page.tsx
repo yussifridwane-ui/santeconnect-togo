@@ -11,10 +11,13 @@ import {
   MessageCircle,
   ShieldCheck,
   AlertTriangle,
+  KeyRound,
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import PatientFormModal, { PatientFull, ageFrom } from "@/components/PatientFormModal";
+import PatientExamsSection from "@/components/PatientExamsSection";
+import { useAuth } from "@/contexts/AuthContext";
 
 function fdate(v?: string | Date | null): string {
   if (!v) return "—";
@@ -57,10 +60,28 @@ export default function PatientFilePage() {
   const params = useParams();
   const router = useRouter();
   const id = String(params?.id || "");
+  const { user } = useAuth();
   const [patient, setPatient] = useState<PatientFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [resettingCode, setResettingCode] = useState(false);
+  const canResetCode = user?.role === "admin" || user?.role === "doctor";
+
+  const resetDossierCode = async () => {
+    if (!confirm(`Réinitialiser le code dossier de ${patient?.fullName || "ce patient"} ?\n\nSon ancien code sera effacé (personne ne peut le lire) ; il en créera un nouveau à sa prochaine connexion.`)) return;
+    setResettingCode(true);
+    try {
+      const res = await fetch(`/api/patients/${id}/dossier-code`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur");
+      alert("✅ Code dossier réinitialisé. Le patient créera un nouveau code à sa prochaine connexion.");
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setResettingCode(false);
+    }
+  };
 
   const fetchPatient = async () => {
     setLoading(true);
@@ -150,6 +171,16 @@ export default function PatientFilePage() {
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">
           <Pencil size={16} /> Modifier
         </button>
+        {canResetCode && (
+          <button
+            onClick={resetDossierCode}
+            disabled={resettingCode}
+            title="Efface le code secret du patient (il en recréera un nouveau)"
+            className="flex items-center gap-2 px-4 py-2 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm font-medium disabled:opacity-50"
+          >
+            {resettingCode ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />} Code dossier
+          </button>
+        )}
       </div>
 
       {/* En-tête patient */}
@@ -256,6 +287,9 @@ export default function PatientFilePage() {
           <Field label="Expiration" value={fdate(patient.coverageEnd)} />
         </SectionCard>
       </div>
+
+      {/* 🧪 Examens du dossier — demande, suivi, résultat, validation (V2.2) */}
+      <PatientExamsSection patientId={id} />
 
       {patient.medicalNotes && (
         <div className="bg-red-50 border border-red-100 rounded-xl p-5">

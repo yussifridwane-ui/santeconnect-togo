@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { format, isToday, isThisWeek, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
+import PatientPortalHome from "@/components/PatientPortalHome";
 
 interface Patient {
   id: number;
@@ -239,6 +240,11 @@ export default function CabinetDashboard() {
     pat.fullName.toLowerCase().includes(patientSearch.toLowerCase())
   );
 
+  // V2.2 — ESPACE PATIENT : RDV lisibles + dossier verrouillé par son code (style T-Money)
+  if (user?.role === "patient") {
+    return <PatientPortalHome userName={user.fullName} />;
+  }
+
   return (
     <div className="space-y-6">
       {/* Alert banner for successes */}
@@ -292,6 +298,19 @@ export default function CabinetDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Quiz d'entraînement — discret, soignants uniquement (V2.2) */}
+      <a
+        href="/dashboard/examens"
+        className="w-full flex items-center gap-3 bg-white border border-emerald-100 rounded-2xl px-5 py-3.5 hover:border-emerald-300 hover:shadow-md transition-all"
+      >
+        <span className="text-2xl">🧠</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-bold text-gray-900">Quiz d'entraînement clinique</span>
+          <span className="block text-xs text-gray-500">Soignants — 10 questions rapides sur les examens paracliniques, entre deux dossiers.</span>
+        </span>
+        <span className="text-emerald-600 font-bold text-sm shrink-0">Jouer →</span>
+      </a>
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
