@@ -2,11 +2,34 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { headers } from "next/headers";
 
-export const metadata: Metadata = {
-  title: "SantéOnline Togo — Gestion de Santé",
-  description: "Plateforme de messagerie et rendez-vous automatiques pour les cliniques, laboratoires et hôpitaux au Togo.",
-};
+// Titre adapté au domaine visité : SikaStock sur sikastock.*, SantéOnline ailleurs
+export async function generateMetadata(): Promise<Metadata> {
+  let host = "";
+  try {
+    const h = await headers();
+    host = h.get("host") || "";
+  } catch {
+    host = "";
+  }
+
+  if (host.startsWith("sikastock")) {
+    return {
+      title: "SikaStock — Gestion de commerce",
+      description:
+        "Le SaaS tout-en-un pour gérer votre boutique au Togo : stock, caisse, clients, reçus WhatsApp et conseils IA.",
+      applicationName: "SikaStock",
+    };
+  }
+
+  return {
+    title: "SantéOnline Togo — Gestion de Santé",
+    description:
+      "Plateforme de messagerie et rendez-vous automatiques pour les cliniques, laboratoires et hôpitaux au Togo.",
+    applicationName: "SantéOnline",
+  };
+}
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
