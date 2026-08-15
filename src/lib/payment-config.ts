@@ -12,7 +12,7 @@ export const PAYOUT = {
     process.env.MIXX_NUMBER ||
     "+228 71 69 24 01",
   beneficiary:
-    process.env.PAYMENT_BENEFICIARY || "Ridwane Issifou — SantéConnect Togo",
+    process.env.PAYMENT_BENEFICIARY || "Ridwane Issifou — SantéOnline Togo",
   floozEnabled: process.env.ENABLE_FLOOZ === "true",
   floozNumber: process.env.FLOOZ_NUMBER || "",
 };

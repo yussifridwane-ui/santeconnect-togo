@@ -73,7 +73,7 @@ export default function LoginPage() {
               <Heart size={24} className="text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">SantéConnect</h1>
+              <h1 className="text-2xl font-bold">SantéOnline</h1>
               <p className="text-emerald-200 text-sm">Togo</p>
             </div>
           </div>
@@ -184,7 +184,7 @@ export default function LoginPage() {
               <Heart size={24} className="text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">SantéConnect</h1>
+              <h1 className="text-2xl font-bold text-gray-900">SantéOnline</h1>
               <p className="text-emerald-600 text-sm">Togo</p>
             </div>
           </div>
@@ -219,7 +219,7 @@ export default function LoginPage() {
                 Bon retour !
               </h2>
               <p className="text-gray-500 mb-8">
-                Connectez-vous à votre compte SantéConnect
+                Connectez-vous à votre compte SantéOnline
               </p>
 
               {error && (
@@ -288,7 +288,7 @@ export default function LoginPage() {
                 Créer un compte
               </h2>
               <p className="text-gray-500 text-sm mb-6">
-                Rejoignez SantéConnect Togo en quelques instants
+                Rejoignez SantéOnline Togo en quelques instants
               </p>
 
               {registerError && (

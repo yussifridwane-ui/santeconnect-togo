@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
         const { paymentUrl } = await createCinetpayPayment({
           txId,
           amountFcfa: amount,
-          description: payment.description || "SantéConnect Togo",
+          description: payment.description || "SantéOnline Togo",
           customerName: session.fullName,
           customerPhone: phone,
           notifyUrl: `${appUrl}/api/billing/webhook`,

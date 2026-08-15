@@ -1,5 +1,5 @@
 // ============================================================
-// Grille tarifaire SantéConnect Togo (FCFA)
+// Grille tarifaire SantéOnline Togo (FCFA)
 // Modifiez les prix / limites ici : tout le système suit.
 // ============================================================
 

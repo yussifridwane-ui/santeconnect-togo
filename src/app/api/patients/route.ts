@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { users, patients, facilities } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { users, patients } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { getSession, hashPassword } from "@/lib/auth";
 import { ensureSubscription, computeState, getUsage } from "@/lib/billing";
 import { getPlan } from "@/lib/plans";
+import { ensureMigrated } from "@/db/migrate";
+import { audit } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    await ensureMigrated();
     const facilityId = session.facilityId || 1;
 
     const result = await db
@@ -31,6 +34,10 @@ export async function GET(request: NextRequest) {
         emergencyPhone: patients.emergencyPhone,
         insuranceNumber: patients.insuranceNumber,
         medicalNotes: patients.medicalNotes,
+        recordNumber: patients.recordNumber,
+        city: patients.city,
+        insurerName: patients.insurerName,
+        insuredNumber: patients.insuredNumber,
         createdAt: patients.createdAt,
       })
       .from(patients)
@@ -44,6 +51,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/* N° de dossier unique : DOS-<cabinet>-XXXXXX (ex. DOS-1-7K3Q9B) */
+async function generateRecordNumber(facilityId: number): Promise<string> {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let suffix = "";
+    for (let i = 0; i < 6; i++) suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+    const candidate = `DOS-${facilityId}-${suffix}`;
+    const exists = await db
+      .select({ id: patients.id })
+      .from(patients)
+      .where(eq(patients.recordNumber, candidate))
+      .limit(1);
+    if (exists.length === 0) return candidate;
+  }
+  return `DOS-${facilityId}-${Date.now()}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
@@ -51,6 +75,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    await ensureMigrated();
     const facilityId = session.facilityId || 1;
     const body = await request.json();
 
@@ -91,6 +116,8 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
+    const recordNumber = body.recordNumber || (await generateRecordNumber(facilityId));
+
     const newPatient = await db
       .insert(patients)
       .values({
@@ -104,8 +131,60 @@ export async function POST(request: NextRequest) {
         emergencyPhone: body.emergencyPhone || "",
         insuranceNumber: body.insuranceNumber || "",
         medicalNotes: body.medicalNotes || "",
+        /* Fiche complète SantéOnline v2 — tous facultatifs */
+        recordNumber,
+        firstName: body.firstName || null,
+        lastName: body.lastName || null,
+        usageName: body.usageName || null,
+        placeOfBirth: body.placeOfBirth || null,
+        nationality: body.nationality || "Togolaise",
+        idType: body.idType || null,
+        idNumber: body.idNumber || null,
+        photoUrl: body.photoUrl || null,
+        phoneSecondary: body.phoneSecondary || null,
+        whatsapp: body.whatsapp || null,
+        country: body.country || "Togo",
+        region: body.region || null,
+        city: body.city || null,
+        commune: body.commune || null,
+        quartier: body.quartier || null,
+        street: body.street || null,
+        houseNumber: body.houseNumber || null,
+        landmark: body.landmark || null,
+        addressFull: body.addressFull || null,
+        maritalStatus: body.maritalStatus || null,
+        spouseName: body.spouseName || null,
+        spousePhone: body.spousePhone || null,
+        childrenCount: body.childrenCount ? Number(body.childrenCount) : null,
+        emergencyName: body.emergencyName || null,
+        emergencyRelation: body.emergencyRelation || null,
+        emergencyPhoneSecondary: body.emergencyPhoneSecondary || null,
+        emergencyWhatsapp: body.emergencyWhatsapp || null,
+        emergencyAddress: body.emergencyAddress || null,
+        emergencyCity: body.emergencyCity || null,
+        profession: body.profession || null,
+        employer: body.employer || null,
+        workPhone: body.workPhone || null,
+        workEmail: body.workEmail || null,
+        workAddress: body.workAddress || null,
+        workCity: body.workCity || null,
+        insurerName: body.insurerName || null,
+        insuredNumber: body.insuredNumber || null,
+        insuranceCardNumber: body.insuranceCardNumber || null,
+        coverageType: body.coverageType || null,
+        coverageStart: body.coverageStart || null,
+        coverageEnd: body.coverageEnd || null,
+        coverageStatus: body.coverageStatus || null,
       })
       .returning();
+
+    await audit(session, {
+      action: "creer",
+      entity: "patient",
+      entityId: newPatient[0].id,
+      patientId: newPatient[0].id,
+      detail: `Création du patient ${newUser[0].fullName} (${recordNumber})`,
+    });
 
     return NextResponse.json(
       {
@@ -123,6 +202,7 @@ export async function POST(request: NextRequest) {
         emergencyPhone: newPatient[0].emergencyPhone,
         insuranceNumber: newPatient[0].insuranceNumber,
         medicalNotes: newPatient[0].medicalNotes,
+        recordNumber: newPatient[0].recordNumber,
       },
       { status: 201 }
     );

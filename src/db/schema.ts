@@ -6,13 +6,14 @@ import {
   timestamp,
   boolean,
   integer,
+  numeric,
   pgEnum,
 } from "drizzle-orm/pg-core";
 
 // Enums
-export const userRoleEnum = pgEnum("user_role", ["admin", "doctor", "nurse", "secretary", "patient"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "doctor", "nurse", "secretary", "patient", "pharmacist", "lab"]);
 export const facilityTypeEnum = pgEnum("facility_type", ["clinic", "laboratory", "hospital"]);
-export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "confirmed", "completed", "cancelled", "no_show"]);
+export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "confirmed", "completed", "cancelled", "no_show", "rescheduled"]);
 export const messageStatusEnum = pgEnum("message_status", ["unread", "read", "archived"]);
 export const appointmentTypeEnum = pgEnum("appointment_type", ["consultation", "lab_test", "follow_up", "emergency", "specialist"]);
 
@@ -62,6 +63,50 @@ export const patients = pgTable("patients", {
   emergencyPhone: varchar("emergency_phone", { length: 50 }),
   insuranceNumber: varchar("insurance_number", { length: 100 }),
   medicalNotes: text("medical_notes"),
+  /* ===== Fiche patient complète — SantéOnline v2 (toutes colonnes facultatives) ===== */
+  recordNumber: varchar("record_number", { length: 40 }), // N° dossier unique (DOS-…)
+  firstName: varchar("first_name", { length: 120 }),
+  lastName: varchar("last_name", { length: 120 }),
+  usageName: varchar("usage_name", { length: 120 }),
+  placeOfBirth: varchar("place_of_birth", { length: 160 }),
+  nationality: varchar("nationality", { length: 120 }).default("Togolaise"),
+  idType: varchar("id_type", { length: 60 }),
+  idNumber: varchar("id_number", { length: 80 }),
+  photoUrl: varchar("photo_url", { length: 500 }),
+  phoneSecondary: varchar("phone_secondary", { length: 50 }),
+  whatsapp: varchar("whatsapp", { length: 50 }),
+  country: varchar("country", { length: 120 }).default("Togo"),
+  region: varchar("region", { length: 120 }),
+  city: varchar("city", { length: 120 }),
+  commune: varchar("commune", { length: 120 }),
+  quartier: varchar("quartier", { length: 160 }),
+  street: varchar("street", { length: 160 }),
+  houseNumber: varchar("house_number", { length: 40 }),
+  landmark: varchar("landmark", { length: 255 }),
+  addressFull: text("address_full"),
+  maritalStatus: varchar("marital_status", { length: 40 }),
+  spouseName: varchar("spouse_name", { length: 160 }),
+  spousePhone: varchar("spouse_phone", { length: 50 }),
+  childrenCount: integer("children_count"),
+  emergencyName: varchar("emergency_name", { length: 160 }),
+  emergencyRelation: varchar("emergency_relation", { length: 80 }),
+  emergencyPhoneSecondary: varchar("emergency_phone_secondary", { length: 50 }),
+  emergencyWhatsapp: varchar("emergency_whatsapp", { length: 50 }),
+  emergencyAddress: varchar("emergency_address", { length: 255 }),
+  emergencyCity: varchar("emergency_city", { length: 120 }),
+  profession: varchar("profession", { length: 120 }),
+  employer: varchar("employer", { length: 160 }),
+  workPhone: varchar("work_phone", { length: 50 }),
+  workEmail: varchar("work_email", { length: 160 }),
+  workAddress: varchar("work_address", { length: 255 }),
+  workCity: varchar("work_city", { length: 120 }),
+  insurerName: varchar("insurer_name", { length: 160 }),
+  insuredNumber: varchar("insured_number", { length: 100 }),
+  insuranceCardNumber: varchar("insurance_card_number", { length: 100 }),
+  coverageType: varchar("coverage_type", { length: 60 }),
+  coverageStart: timestamp("coverage_start", { mode: "string" }),
+  coverageEnd: timestamp("coverage_end", { mode: "string" }),
+  coverageStatus: varchar("coverage_status", { length: 40 }).default("inconnue"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -248,5 +293,181 @@ export const medicalRecords = pgTable("medical_records", {
   prescription: text("prescription"),
   notes: text("notes"),
   recordType: varchar("record_type", { length: 50 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// ============ SantéOnline v2 — nouvelles tables (100 % additives) ============
+
+// Consultations (constantes + diagnostic + traitement)
+export const consultations = pgTable("consultations", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  doctorId: integer("doctor_id"),
+  facilityId: integer("facility_id"),
+  appointmentId: integer("appointment_id"),
+  motif: varchar("motif", { length: 255 }),
+  symptoms: text("symptoms"),
+  temperature: numeric("temperature", { precision: 4, scale: 1 }),
+  bloodPressure: varchar("blood_pressure", { length: 20 }),
+  pulse: integer("pulse"),
+  weight: numeric("weight", { precision: 5, scale: 1 }),
+  height: numeric("height", { precision: 5, scale: 1 }),
+  saturation: numeric("saturation", { precision: 4, scale: 1 }),
+  observations: text("observations"),
+  diagnosis: text("diagnosis"),
+  treatment: text("treatment"),
+  prescription: text("prescription"),
+  examsRequested: text("exams_requested"),
+  recommendations: text("recommendations"),
+  nextAppointmentAt: timestamp("next_appointment_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Ordonnances
+export const prescriptions = pgTable("prescriptions", {
+  id: serial("id").primaryKey(),
+  consultationId: integer("consultation_id"),
+  patientId: integer("patient_id").notNull(),
+  doctorId: integer("doctor_id"),
+  facilityId: integer("facility_id"),
+  instructions: text("instructions"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export const prescriptionItems = pgTable("prescription_items", {
+  id: serial("id").primaryKey(),
+  prescriptionId: integer("prescription_id").notNull(),
+  medication: varchar("medication", { length: 255 }).notNull(),
+  dosage: varchar("dosage", { length: 120 }),
+  posology: varchar("posology", { length: 255 }),
+  frequency: varchar("frequency", { length: 120 }),
+  duration: varchar("duration", { length: 120 }),
+  instructions: varchar("instructions", { length: 255 }),
+});
+
+// Laboratoire
+export const labRequests = pgTable("lab_requests", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  doctorId: integer("doctor_id"),
+  facilityId: integer("facility_id"),
+  examType: varchar("exam_type", { length: 255 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("requested"),
+  result: text("result"),
+  comment: text("comment"),
+  validatedBy: integer("validated_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  validatedAt: timestamp("validated_at"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Imagerie médicale
+export const imagingExams = pgTable("imaging_exams", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  doctorId: integer("doctor_id"),
+  facilityId: integer("facility_id"),
+  examType: varchar("exam_type", { length: 60 }).notNull().default("autre"),
+  requestNote: text("request_note"),
+  status: varchar("status", { length: 20 }).notNull().default("requested"),
+  report: text("report"),
+  documentId: integer("document_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Pharmacie
+export const pharmacyMedications = pgTable("pharmacy_medications", {
+  id: serial("id").primaryKey(),
+  facilityId: integer("facility_id").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  form: varchar("form", { length: 60 }),
+  dosage: varchar("dosage", { length: 60 }),
+  stock: integer("stock").notNull().default(0),
+  lowStock: integer("low_stock").notNull().default(5),
+  lot: varchar("lot", { length: 80 }),
+  expiryDate: timestamp("expiry_date", { mode: "string" }),
+  supplier: varchar("supplier", { length: 160 }),
+  priceFcfa: integer("price_fcfa").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export const pharmacyMovements = pgTable("pharmacy_movements", {
+  id: serial("id").primaryKey(),
+  medicationId: integer("medication_id").notNull(),
+  facilityId: integer("facility_id").notNull(),
+  kind: varchar("kind", { length: 10 }).notNull(),
+  qty: integer("qty").notNull(),
+  note: varchar("note", { length: 255 }),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Facturation patients
+export const invoices = pgTable("invoices", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id"),
+  facilityId: integer("facility_id").notNull(),
+  number: varchar("number", { length: 40 }),
+  discountFcfa: integer("discount_fcfa").notNull().default(0),
+  totalFcfa: integer("total_fcfa").notNull().default(0),
+  paidFcfa: integer("paid_fcfa").notNull().default(0),
+  method: varchar("method", { length: 30 }),
+  status: varchar("status", { length: 20 }).notNull().default("unpaid"),
+  notes: text("notes"),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export const invoiceItems = pgTable("invoice_items", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").notNull(),
+  kind: varchar("kind", { length: 30 }).notNull().default("service"),
+  label: varchar("label", { length: 255 }).notNull(),
+  qty: integer("qty").notNull().default(1),
+  unitPriceFcfa: integer("unit_price_fcfa").notNull().default(0),
+  totalFcfa: integer("total_fcfa").notNull().default(0),
+});
+
+// Notifications internes
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  facilityId: integer("facility_id"),
+  type: varchar("type", { length: 40 }).notNull().default("info"),
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body"),
+  link: varchar("link", { length: 255 }),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Documents patients
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").notNull(),
+  uploadedBy: integer("uploaded_by"),
+  facilityId: integer("facility_id"),
+  kind: varchar("kind", { length: 40 }).notNull().default("autre"),
+  title: varchar("title", { length: 255 }).notNull(),
+  mime: varchar("mime", { length: 80 }),
+  url: text("url"),
+  data: text("data"),
+  sizeBytes: integer("size_bytes"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Journal de sécurité — append-only, JAMAIS modifiable par les utilisateurs (aucune API d'écriture)
+export const auditLog = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id"),
+  userName: varchar("user_name", { length: 255 }),
+  userRole: varchar("user_role", { length: 30 }),
+  facilityId: integer("facility_id"),
+  patientId: integer("patient_id"),
+  action: varchar("action", { length: 40 }).notNull(),
+  entity: varchar("entity", { length: 40 }).notNull(),
+  entityId: integer("entity_id"),
+  detail: text("detail"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

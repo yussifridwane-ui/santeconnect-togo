@@ -19,6 +19,7 @@ import {
   ChevronRight,
   CreditCard,
   Zap,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -72,6 +73,12 @@ const navItems = [
     roles: ["admin"],
   },
   {
+    label: "Journal de sécurité",
+    icon: ShieldCheck,
+    href: "/dashboard/audit",
+    roles: ["admin"],
+  },
+  {
     label: "Paramètres",
     icon: Settings,
     href: "/dashboard/settings",
@@ -88,6 +95,16 @@ export default function Sidebar() {
   const filteredNavItems = navItems.filter((item) =>
     item.roles.includes(user?.role || "patient")
   );
+
+  const ROLE_LABELS: Record<string, string> = {
+    admin: "Administrateur",
+    doctor: "Médecin",
+    nurse: "Infirmier(ère)",
+    secretary: "Secrétaire",
+    patient: "Patient",
+    pharmacist: "Pharmacien",
+    lab: "Laboratoire",
+  };
 
   return (
     <>
@@ -123,7 +140,7 @@ export default function Sidebar() {
           </div>
           {expanded && (
             <div className="overflow-hidden">
-              <h1 className="font-bold text-sm leading-tight">SantéConnect</h1>
+              <h1 className="font-bold text-sm leading-tight">SantéOnline</h1>
               <p className="text-xs text-emerald-200">Togo</p>
             </div>
           )}
@@ -146,8 +163,8 @@ export default function Sidebar() {
             {expanded && (
               <div className="overflow-hidden min-w-0">
                 <p className="text-sm font-medium truncate">{user?.fullName}</p>
-                <p className="text-xs text-emerald-200 truncate capitalize">
-                  {user?.role}
+                <p className="text-xs text-emerald-200 truncate">
+                  {ROLE_LABELS[user?.role || "patient"] || user?.role}
                 </p>
               </div>
             )}

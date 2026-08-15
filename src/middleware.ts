@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // Quand le site est servi depuis sikastock.onrender.com (ou futur sikastock.tg),
-// la racine affiche SikaStock au lieu de SantéConnect.
+// la racine affiche SikaStock au lieu de SantéOnline.
 export function middleware(req: NextRequest) {
   const host = req.headers.get("host") || "";
   if (!host.startsWith("sikastock")) return NextResponse.next();

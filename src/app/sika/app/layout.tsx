@@ -102,7 +102,7 @@ export default function SikaAppLayout({ children }: { children: React.ReactNode 
           ))}
         </nav>
         <div className="p-3 border-t border-white/10">
-          <Link href="https://santeonline.netlify.app/dashboard" className="text-xs text-amber-100 hover:text-white">← Espace SantéConnect</Link>
+          <Link href="https://santeonline.netlify.app/dashboard" className="text-xs text-amber-100 hover:text-white">← Espace SantéOnline</Link>
         </div>
       </aside>
 

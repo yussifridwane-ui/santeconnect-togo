@@ -68,7 +68,7 @@ export function computeState(sub: Subscription | null): BillingState {
       daysLeft: 0,
       renewalDate: null,
       message:
-        "Votre essai gratuit de 14 jours est terminé. Souscrivez une formule pour continuer à utiliser SantéConnect.",
+        "Votre essai gratuit de 14 jours est terminé. Souscrivez une formule pour continuer à utiliser SantéOnline.",
     };
   }
   if (sub.status === "active") {

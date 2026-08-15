@@ -84,7 +84,7 @@ export async function tryAutoApprove(input: {
   const rules = await getRules(input.facilityId);
   const adminWa = process.env.ADMIN_WA || "22871692401";
   const waLink = `https://wa.me/${adminWa}?text=${encodeURIComponent(
-    `🔔 SantéConnect — transaction AUTOMATIQUE\n💰 ${input.amount.toLocaleString("fr-FR")} F CFA\n🧾 Réf : ${input.reference}\n👤 ${input.counterparty}\n⏱ Fenêtre d'annulation : ${rules.cancelWindowMinutes} min (Centre d'automatisation).`
+    `🔔 SantéOnline — transaction AUTOMATIQUE\n💰 ${input.amount.toLocaleString("fr-FR")} F CFA\n🧾 Réf : ${input.reference}\n👤 ${input.counterparty}\n⏱ Fenêtre d'annulation : ${rules.cancelWindowMinutes} min (Centre d'automatisation).`
   )}`;
 
   if (!rules.autoApprovePayments)

@@ -4,7 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata: Metadata = {
-  title: "SantéConnect Togo — Gestion de Santé",
+  title: "SantéOnline Togo — Gestion de Santé",
   description: "Plateforme de messagerie et rendez-vous automatiques pour les cliniques, laboratoires et hôpitaux au Togo.",
 };
 
