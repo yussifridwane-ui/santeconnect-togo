@@ -17,6 +17,8 @@ interface AptInfo {
 function ConfirmerPage() {
   const searchParams = useSearchParams();
   const t = searchParams.get("t") || "";
+  /* 🗳️ Sondage direct depuis le message (e-mail/SMS/WhatsApp) : &r=oui | &r=non */
+  const rParam = searchParams.get("r") || "";
   const [state, setState] = useState<"loading" | "confirmed" | "declined" | "error">("loading");
   const [apt, setApt] = useState<AptInfo | null>(null);
   const [error, setError] = useState("");
@@ -40,13 +42,13 @@ function ConfirmerPage() {
   };
 
   useEffect(() => {
-    if (t) respond("confirmed");
+    if (t) respond(rParam === "non" ? "declined" : "confirmed");
     else {
-      setError("Lien incomplet — ouvre-le depuis l'e-mail reçu.");
+      setError("Lien incomplet — ouvre-le depuis le message reçu (e-mail, SMS ou WhatsApp).");
       setState("error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t]);
+  }, [t, rParam]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 flex items-center justify-center p-4">

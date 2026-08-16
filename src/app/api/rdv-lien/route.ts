@@ -7,16 +7,23 @@ const KEY = new TextEncoder().encode(
   process.env.JWT_SECRET || "togo-health-messaging-secret-key-2024"
 );
 
+import { sendEmail } from "@/lib/email";
+
 /**
- * POST /api/rdv-lien — le patient clique DEPUIS SON E-MAIL, sans se connecter.
- * Le jeton signé prouve son identité (réservé à CE rendez-vous uniquement).
+ * POST /api/rdv-lien — le patient clique DEPUIS SON E-MAIL / SMS / WHATSAPP,
+ * sans se connecter. Le jeton signé prouve son identité (réservé à CE rendez-vous).
  * Corps : { t: string, response?: "confirmed" | "declined" }
+ * Le paramètre r=oui / r=non (sondage dans le message) pré-remplit la réponse.
  */
 export async function POST(request: NextRequest) {
   try {
     await ensureMigrated();
     const body = await request.json();
-    const response = body.response === "declined" ? "declined" : "confirmed";
+    const r = String(body.r || "");
+    const response =
+      body.response === "declined" || r === "non" ? "declined"
+      : r === "oui" || body.response === "confirmed" || !body.response ? "confirmed"
+      : "confirmed";
 
     let payload: { scope?: unknown; aid?: unknown; pid?: unknown };
     try {
@@ -31,7 +38,8 @@ export async function POST(request: NextRequest) {
 
     const apt = await pool.query(
       `SELECT a.id, a.title, a.scheduled_date, a.doctor_id, a.patient_response,
-              u.full_name AS patient_name, d.full_name AS doctor_name, f.name AS facility_name, p.facility_id
+              u.full_name AS patient_name, d.full_name AS doctor_name, d.email AS doctor_email,
+              f.name AS facility_name, p.facility_id
        FROM appointments a
        JOIN patients p ON p.id = a.patient_id
        LEFT JOIN users u ON u.id = p.user_id
@@ -59,11 +67,33 @@ export async function POST(request: NextRequest) {
               a.doctor_id,
               a.facility_id,
               response === "confirmed"
-                ? `✅ ${a.patient_name} a confirmé sa présence (e-mail)`
-                : `⚠️ ${a.patient_name} a signalé un empêchement (e-mail)`,
+                ? `✅ ${a.patient_name} a confirmé sa présence (sondage)`
+                : `⚠️ ${a.patient_name} a signalé un empêchement (sondage)`,
               `Rendez-vous « ${a.title || "Consultation"} » du ${new Date(a.scheduled_date).toLocaleDateString("fr-FR")}.`,
             ],
           );
+          /* 📧 Le médecin reçoit AUSSI un e-mail automatique — aucune manipulation requise */
+          if (a.doctor_email) {
+            const dateFr = new Date(a.scheduled_date).toLocaleString("fr-FR", { dateStyle: "full", timeStyle: "short" });
+            await sendEmail({
+              to: a.doctor_email,
+              toName: a.doctor_name || undefined,
+              subject: response === "confirmed"
+                ? `✅ ${a.patient_name} confirme sa présence`
+                : `⚠️ ${a.patient_name} signale un empêchement`,
+              html: `
+                <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;color:#111">
+                  <div style="background:#047857;color:#fff;padding:14px 18px;border-radius:12px 12px 0 0"><b>🩺 SantéOnline — réponse au sondage</b></div>
+                  <div style="border:1px solid #d1fae5;border-top:none;padding:18px;border-radius:0 0 12px 12px">
+                    <p>Bonjour Dr ${a.doctor_name || ""},</p>
+                    <p>Pour le rendez-vous « <b>${a.title || "Consultation"}</b> » du <b>${dateFr}</b> :</p>
+                    <p style="font-size:16px;font-weight:bold;color:${response === "confirmed" ? "#059669" : "#b45309"}">
+                      ${response === "confirmed" ? `✅ ${a.patient_name} a confirmé sa présence.` : `⚠️ ${a.patient_name} a signalé un empêchement.`}
+                    </p>
+                  </div>
+                </div>`,
+            });
+          }
         } catch (e) {
           console.error("[rdv-lien] notification:", e);
         }
