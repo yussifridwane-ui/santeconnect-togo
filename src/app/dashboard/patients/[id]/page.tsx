@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import PatientFormModal, { PatientFull, ageFrom } from "@/components/PatientFormModal";
 import PatientExamsSection from "@/components/PatientExamsSection";
+import PatientInsurancesBlock from "@/components/PatientInsurancesBlock";
 import { useAuth } from "@/contexts/AuthContext";
 
 function fdate(v?: string | Date | null): string {
@@ -287,6 +288,9 @@ export default function PatientFilePage() {
           <Field label="Expiration" value={fdate(patient.coverageEnd)} />
         </SectionCard>
       </div>
+
+      {/* 🛡️ V2.9 — Assurances MULTIPLES du patient (INAM, CNSS, mutuelles…) */}
+      <PatientInsurancesBlock patientId={id} />
 
       {/* 🧪 Examens du dossier — demande, suivi, résultat, validation (V2.2) */}
       <PatientExamsSection patientId={id} />

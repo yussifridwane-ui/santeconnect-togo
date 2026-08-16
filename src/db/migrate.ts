@@ -432,6 +432,31 @@ const STATEMENTS: string[] = [
   /* ---------- V2.8 : VERROUILLAGE ANTI BRUTE-FORCE PERSISTANT ---------- */
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS login_fails integer NOT NULL DEFAULT 0`,
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS login_locked_until timestamp`,
+
+  /* ---------- V2.9 : ASSURANCES MULTIPLES PAR PATIENT ----------
+     Un patient peut avoir PLUSIEURS couvertures (ex. INAM + mutuelle privée).
+     UNE SEULE « primaire » à la fois : l'index unique partiel ci-dessous
+     le garantit au niveau base de données (ceinture + bretelles ; les routes
+     désactivent aussi l'ancienne primaire avant d'en poser une nouvelle).
+     La colonne card_serial (future puce à scanner) existe déjà, vide →
+     rien à casser le jour où le lecteur de puce INAM arrivera. */
+  `CREATE TABLE IF NOT EXISTS patient_insurances (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    insurer_id integer REFERENCES insurers(id) ON DELETE SET NULL,
+    insurer_name_other varchar(120),
+    insurance_number varchar(60) NOT NULL,
+    status varchar(12) NOT NULL DEFAULT 'inconnu',
+    is_primary boolean NOT NULL DEFAULT false,
+    card_document_id integer REFERENCES documents(id) ON DELETE SET NULL,
+    card_serial varchar(64),
+    verified_at timestamp,
+    notes text,
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_patient_ins_patient ON patient_insurances(patient_id)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS uniq_patient_primary_ins ON patient_insurances(patient_id) WHERE is_primary`,
 ];
 
 /* 🛡️ Assureurs maladie du Togo — liste de départ, taux PAR DÉFAUT 80 %

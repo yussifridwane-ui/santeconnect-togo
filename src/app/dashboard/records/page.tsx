@@ -9,6 +9,7 @@ import {
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useAuth } from "@/contexts/AuthContext";
+import RxInsuranceBanner, { RxInsChoice } from "@/components/RxInsuranceBanner";
 
 /* ================================ TYPES ================================ */
 interface PatientLite {
@@ -102,6 +103,9 @@ export default function RecordsPage() {
   const [ordoInstructions, setOrdoInstructions] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
+  /* 🛡️ V2.9 — assurance choisie pour l'ordonnance en cours
+     (primaire par défaut, modifiable via le bandeau) */
+  const [rxIns, setRxIns] = useState<RxInsChoice | null>(null);
 
   useEffect(() => {
     fetch("/api/patients")
@@ -199,6 +203,7 @@ export default function RecordsPage() {
   const printOrdonnance = (o: Ordonnance) => {
     if (!dme) return;
     const esc = (s: string | null | undefined) => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const RX_STATUS_LABEL: Record<string, string> = { actif: "Actif", expire: "Expiré", suspendu: "Suspendu", inconnu: "Inconnu" };
     const prof = dme.professional;
     const rows = o.items.map((i, k) => `
       <tr><td>${k + 1}</td><td><b>${esc(i.medication)}</b></td><td>${esc(i.dosage)}</td><td>${esc(i.posology)}</td><td>${esc(i.frequency)}</td><td>${esc(i.duration)}</td></tr>`).join("");
@@ -228,7 +233,7 @@ export default function RecordsPage() {
       </div>
       <h1>ORDONNANCE</h1>
       <div class="pat">Patient(e) : <b>${esc(dme.patient.fullName)}</b> · ${ageOf(dme.patient.dateOfBirth)}${dme.patient.recordNumber ? ` · N° ${esc(dme.patient.recordNumber)}` : ""}<br/>
-      ${dme.patient.insurerName ? `Assurance : <b>🛡️ ${esc(dme.patient.insurerName)}</b>${dme.patient.insuredNumber ? ` · N° assuré : <b>${esc(dme.patient.insuredNumber)}</b>` : ""}${dme.patient.coverageStatus ? ` · Couverture : ${esc(dme.patient.coverageStatus)}` : ""}<br/>` : ""}
+      ${rxIns ? `Assurance : <b>🛡️ ${esc(rxIns.label)}</b>${rxIns.number ? ` · N° assuré : <b>${esc(rxIns.number)}</b>` : ""} · Statut : ${esc(RX_STATUS_LABEL[rxIns.status] || rxIns.status)}<br/>` : dme.patient.insurerName ? `Assurance : <b>🛡️ ${esc(dme.patient.insurerName)}</b>${dme.patient.insuredNumber ? ` · N° assuré : <b>${esc(dme.patient.insuredNumber)}</b>` : ""}${dme.patient.coverageStatus ? ` · Couverture : ${esc(dme.patient.coverageStatus)}` : ""}<br/>` : ""}
       Date : ${format(new Date(o.createdAt), "dd MMMM yyyy", { locale: fr })}</div>
       <table><thead><tr><th>#</th><th>Médicament</th><th>Dosage</th><th>Posologie</th><th>Fréquence</th><th>Durée</th></tr></thead><tbody>${rows}</tbody></table>
       ${o.items.some((i) => i.instructions) ? `<div class="instr">${o.items.filter((i) => i.instructions).map((i) => `• <b>${esc(i.medication)}</b> : ${esc(i.instructions)}`).join("<br/>")}</div>` : ""}
@@ -498,6 +503,12 @@ export default function RecordsPage() {
           {/* ================= ORDONNANCES ================= */}
           {tab === "ordonnances" && (
             <div className="space-y-4">
+              {/* 🛡️ V2.9 — Bandeau assurance : primaire par défaut,
+                  choix de la couverture pour CETTE ordonnance si plusieurs,
+                  « non assuré — paiement direct » sans bloquer sinon */}
+              {selectedId != null && (
+                <RxInsuranceBanner patientId={selectedId} onSelect={setRxIns} />
+              )}
               {canWrite && (
                 <button onClick={() => setShowOrdoForm((s) => !s)} className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-semibold text-sm">
                   <Plus size={16} /> {showOrdoForm ? "Fermer" : "Nouvelle ordonnance"}
