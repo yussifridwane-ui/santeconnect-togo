@@ -109,6 +109,43 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
   const [mBusy, setMBusy] = useState(false);
   const [healthMsg, setHealthMsg] = useState("");
 
+  /* 🗓️ Réservation en ligne (V2.5) */
+  const [doctors, setDoctors] = useState<{ id: number; full_name: string }[]>([]);
+  const [bkDoctor, setBkDoctor] = useState("");
+  const [bkDate, setBkDate] = useState("");
+  const [bkTime, setBkTime] = useState("");
+  const [bkMotif, setBkMotif] = useState("");
+  const [bkBusy, setBkBusy] = useState(false);
+  const [bkMsg, setBkMsg] = useState("");
+
+  const bookRdv = async () => {
+    setBkBusy(true);
+    setBkMsg("");
+    try {
+      const r = await fetch("/api/patient-portal/rdv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doctorId: bkDoctor || undefined,
+          date: bkDate, time: bkTime,
+          motif: bkMotif || "Consultation",
+        }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setBkMsg("✅ Demande envoyée ! Le centre va confirmer ton rendez-vous — tu le verras ici même.");
+        setBkDoctor(""); setBkDate(""); setBkTime(""); setBkMotif("");
+        const rr = await fetch("/api/appointments");
+        const dd = await rr.json();
+        setApts(Array.isArray(dd) ? dd : []);
+      } else {
+        setBkMsg("⚠️ " + (d.error || "Impossible d'envoyer la demande."));
+      }
+    } finally {
+      setBkBusy(false);
+    }
+  };
+
   useEffect(() => {
     fetch("/api/appointments")
       .then((r) => r.json())
@@ -125,6 +162,12 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
       .catch(() => setGate("locked"));
 
     refreshHealth();
+
+    /* 🗓️ Médecins de mon centre pour la réservation en ligne */
+    fetch("/api/patient-portal/rdv")
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d.doctors)) setDoctors(d.doctors); })
+      .catch(() => {});
   }, []);
 
   const refreshHealth = () => {
@@ -342,6 +385,58 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
             })}
           </div>
         )}
+      </div>
+
+      {/* 🗓️ Prendre rendez-vous EN LIGNE — réservation par le patient lui-même (V2.5) */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">🗓️</span>
+          <h2 className="font-bold text-gray-900">Prendre rendez-vous</h2>
+        </div>
+        <p className="text-xs text-gray-500">
+          Choisis ton jour et ton heure — le centre confirme ensuite. Sans code, sans appel téléphonique.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <select
+            value={bkDoctor}
+            onChange={(e) => setBkDoctor(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-xl text-sm"
+          >
+            <option value="">Médecin (facultatif)</option>
+            {doctors.map((d) => (
+              <option key={d.id} value={d.id}>{d.full_name}</option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={bkDate}
+            min={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setBkDate(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-xl text-sm"
+          />
+          <input
+            type="time"
+            value={bkTime}
+            onChange={(e) => setBkTime(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-xl text-sm"
+          />
+          <input
+            placeholder="Motif (ex : fièvre, contrôle…)"
+            value={bkMotif}
+            onChange={(e) => setBkMotif(e.target.value)}
+            className="px-3 py-2.5 border border-gray-300 rounded-xl text-sm"
+          />
+        </div>
+        {bkMsg && (
+          <p className={`text-sm font-medium ${bkMsg.startsWith("✅") ? "text-emerald-700" : "text-red-600"}`}>{bkMsg}</p>
+        )}
+        <button
+          onClick={bookRdv}
+          disabled={bkBusy || !bkDate || !bkTime}
+          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-bold text-sm"
+        >
+          {bkBusy ? "Envoi…" : "Envoyer ma demande de rendez-vous"}
+        </button>
       </div>
 
       {/* 📝 Journal de santé & suivi — tes propres saisies (sans code) */}

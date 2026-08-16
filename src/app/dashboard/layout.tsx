@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import NotificationBell from "@/components/NotificationBell";
 import { Loader2, Lock, CreditCard } from "lucide-react";
 
 interface BillingState {
@@ -84,6 +85,9 @@ export default function DashboardLayout({
       <Sidebar />
       <main className="flex-1 min-w-0">
         <div className="p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8">
+          <div className="flex justify-end mb-3">
+            <NotificationBell />
+          </div>
           {isStaff && billing?.status === "trialing" && (
             <div className="mb-5 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex flex-wrap items-center justify-between gap-2">
               <span>

@@ -99,5 +99,44 @@ export async function runDueReminders(origin: string): Promise<{ scanned: number
   if (due.rows.length > 0) {
     console.log(`[rappels] ${due.rows.length} rappel(s) traité(s), ${emailed} e-mail(s) envoyé(s)`);
   }
+
+  /* 🧾 RAPPELS FACTURES IMPAYÉES (V2.5) — automatique, sans intervention humaine :
+     une facture non soldée depuis plus de 3 jours → notification unique à la caisse. */
+  try {
+    const unpaid = await pool.query(
+      `SELECT i.id, i.number, i.total_fcfa, i.facility_id,
+              pu.full_name AS patient_name
+       FROM invoices i
+       LEFT JOIN patients p ON p.id = i.patient_id
+       LEFT JOIN users pu ON pu.id = p.user_id
+       WHERE i.status <> 'paid' AND i.reminded_at IS NULL
+         AND i.created_at < now() - interval '3 days'
+       LIMIT 50`,
+    );
+    for (const f of unpaid.rows) {
+      const caisse = await pool.query(
+        `SELECT id FROM users WHERE facility_id = $1 AND role IN ('admin','secretary') AND is_active = true`,
+        [f.facility_id],
+      );
+      for (const c of caisse.rows) {
+        await pool.query(
+          `INSERT INTO notifications (user_id, facility_id, type, title, body, link)
+           VALUES ($1,$2,'paiement',$3,$4,'/dashboard/facturation')`,
+          [
+            c.id, f.facility_id,
+            `🧾 Facture ${f.number} en attente depuis 3 jours`,
+            `${f.patient_name || "Un patient"} doit encore ${Number(f.total_fcfa).toLocaleString("fr-FR")} FCFA. Pense à relancer.`,
+          ],
+        );
+      }
+      await pool.query(`UPDATE invoices SET reminded_at = now() WHERE id = $1`, [f.id]);
+    }
+    if (unpaid.rows.length > 0) {
+      console.log(`[rappels] ${unpaid.rows.length} rappel(s) de facture impayée envoyé(s)`);
+    }
+  } catch (e) {
+    console.error("[rappels] factures impayées:", e);
+  }
+
   return { scanned: due.rows.length, emailed };
 }

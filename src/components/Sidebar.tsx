@@ -20,6 +20,8 @@ import {
   CreditCard,
   Zap,
   ShieldCheck,
+  Receipt,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -61,7 +63,19 @@ const navItems = [
     roles: ["admin", "doctor", "nurse"],
   },
   {
-    label: "Facturation",
+    label: "Facturation patients",
+    icon: Receipt,
+    href: "/dashboard/facturation",
+    roles: ["admin", "secretary"],
+  },
+  {
+    label: "Équipe",
+    icon: UserCog,
+    href: "/dashboard/team",
+    roles: ["admin"],
+  },
+  {
+    label: "Mon abonnement",
     icon: CreditCard,
     href: "/dashboard/billing",
     roles: ["admin", "doctor", "nurse", "secretary"],

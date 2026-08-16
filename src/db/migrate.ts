@@ -409,6 +409,9 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_contra_patient ON patient_contraindications(patient_id)`,
   `CREATE INDEX IF NOT EXISTS idx_metrics_patient ON patient_metrics(patient_id, metric, taken_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_journal_patient ON patient_journal(patient_id, entry_date DESC)`,
+
+  /* ---------- V2.5 : GESTION DE CABINET (facturation — rappel impayés) ---------- */
+  `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reminded_at timestamp`,
 ];
 
 let migrating: Promise<void> | null = null;
