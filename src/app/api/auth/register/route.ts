@@ -38,7 +38,8 @@ export async function POST(request: NextRequest) {
     }
 
     /* 🛡️ V2.8 — on ne fait JAMAIS confiance au rôle ni au facilityId du client */
-    const safeRole = REGISTERABLE.has(String(body.role)) ? String(body.role) : "patient";
+    const requestedRole = String(body.role || "");
+    const safeRole: "patient" | "admin" = REGISTERABLE.has(requestedRole) && requestedRole === "admin" ? "admin" : "patient";
     if (safeRole === "admin" && !createFacilityName) {
       return NextResponse.json(
         { error: "Pour un compte administrateur, crée d'abord ton établissement." },
