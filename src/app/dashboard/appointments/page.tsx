@@ -29,6 +29,7 @@ interface Appointment {
   endDate: string;
   notes: string;
   isAutoScheduled: boolean;
+  patientResponse?: string | null;
   createdAt: string;
   patientName: string;
   patientPhone?: string;
@@ -593,6 +594,16 @@ export default function AppointmentsPage() {
                     >
                       {statusLabels[apt.status]}
                     </span>
+                    {apt.patientResponse === "confirmed" && (
+                      <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md text-xs font-bold whitespace-nowrap" title="Le patient a confirmé via son rappel automatique">
+                        🙋 Présence confirmée
+                      </span>
+                    )}
+                    {apt.patientResponse === "declined" && (
+                      <span className="px-2 py-1 bg-red-100 text-red-700 rounded-md text-xs font-bold whitespace-nowrap" title="Le patient a signalé un empêchement">
+                        ⚠️ Empêchement signalé
+                      </span>
+                    )}
                     <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-medium whitespace-nowrap">
                       {typeLabels[apt.type]}
                     </span>

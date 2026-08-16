@@ -14,6 +14,7 @@ interface Apt {
   notes?: string | null;
   doctorName?: string | null;
   facilityName?: string | null;
+  patientResponse?: string | null;
 }
 
 interface PortalExam {
@@ -160,6 +161,20 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
     setGate("locked");
   };
 
+  /* V2.3 : le patient confirme sa présence en 1 clic — sans appeler personne */
+  const respondRdv = async (aptId: number, response: "confirmed" | "declined") => {
+    setApts((prev) => prev.map((a) => (a.id === aptId ? { ...a, patientResponse: response } : a)));
+    try {
+      await fetch("/api/patient-portal/rdv-reponse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appointmentId: aptId, response }),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const upcoming = apts.filter((a) => new Date(a.scheduledDate) >= new Date(Date.now() - 24 * 3600 * 1000));
 
   return (
@@ -202,6 +217,22 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
                     </p>
                   </div>
                   <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${st.cls}`}>{st.label}</span>
+                  {a.patientResponse === "confirmed" && (
+                    <span className="w-full text-center text-[11px] font-bold text-emerald-700 bg-emerald-50 rounded-lg py-1">🙋 Présence confirmée — merci !</span>
+                  )}
+                  {a.patientResponse === "declined" && (
+                    <span className="w-full text-center text-[11px] font-bold text-amber-700 bg-amber-50 rounded-lg py-1">⚠️ Empêchement signalé au centre</span>
+                  )}
+                  {!a.patientResponse && ["pending", "confirmed", "rescheduled"].includes(a.status) && (
+                    <div className="w-full grid grid-cols-2 gap-1.5">
+                      <button onClick={() => respondRdv(a.id, "confirmed")} className="py-1.5 bg-emerald-600 text-white rounded-lg text-[11px] font-bold">
+                        ✅ Je serai présent(e)
+                      </button>
+                      <button onClick={() => respondRdv(a.id, "declined")} className="py-1.5 bg-white border border-red-200 text-red-600 rounded-lg text-[11px] font-bold">
+                        ❌ Empêchement
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

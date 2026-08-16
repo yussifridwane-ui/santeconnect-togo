@@ -4,6 +4,7 @@ import { appointments, users, facilities, patients } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getSession } from "@/lib/auth";
 import { ensureSubscription, computeState } from "@/lib/billing";
+import { runDueReminders } from "@/lib/reminders";
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
         notes: appointments.notes,
         isAutoScheduled: appointments.isAutoScheduled,
         createdAt: appointments.createdAt,
+        patientResponse: appointments.patientResponse,
         patientName: patients.userId, // placeholder
         doctorName: users.fullName,
         facilityName: facilities.name,
@@ -75,6 +77,13 @@ export async function GET(request: NextRequest) {
       if (me.length === 0) return NextResponse.json([]);
       const myPid = me[0].id;
       result = result.filter((a) => a.patientId === myPid);
+    }
+
+    // V2.3 — balayage des rappels RDV automatiques (aucune manipulation humaine)
+    try {
+      await runDueReminders(new URL(request.url).origin);
+    } catch (e) {
+      console.error("[rappels]", e);
     }
 
     return NextResponse.json(result);

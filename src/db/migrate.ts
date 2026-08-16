@@ -315,6 +315,11 @@ const STATEMENTS: string[] = [
   `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dossier_code_set_at timestamp`,
   `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dossier_fails integer NOT NULL DEFAULT 0`,
   `ALTER TABLE patients ADD COLUMN IF NOT EXISTS dossier_locked_until timestamp`,
+
+  /* ---------- V2.3 : RAPPELS RDV AUTOMATIQUES + RÉPONSE DU PATIENT ---------- */
+  `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_sent_at timestamp`,
+  `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_response varchar(20)`,
+  `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_response_at timestamp`,
 ];
 
 let migrating: Promise<void> | null = null;

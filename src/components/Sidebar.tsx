@@ -58,7 +58,7 @@ const navItems = [
     label: "Dossiers Médicaux",
     icon: FileText,
     href: "/dashboard/records",
-    roles: ["admin", "doctor"],
+    roles: ["admin", "doctor", "nurse"],
   },
   {
     label: "Facturation",

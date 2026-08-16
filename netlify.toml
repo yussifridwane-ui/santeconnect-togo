@@ -64,3 +64,7 @@
 # écrites ici. Configurez-les dans l'interface Netlify :
 #   Site settings > Environment variables
 # (voir README.md pour les valeurs exactes)
+
+# ⏰ Tâche programmée : rappels de rendez-vous automatiques (toutes les heures)
+[functions."reminders"]
+schedule = "@hourly"

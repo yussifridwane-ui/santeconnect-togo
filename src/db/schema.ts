@@ -131,6 +131,10 @@ export const appointments = pgTable("appointments", {
   endDate: timestamp("end_date"),
   notes: text("notes"),
   isAutoScheduled: boolean("is_auto_scheduled").notNull().default(false),
+  // 🤖 V2.3 : rappel automatique 24 h + réponse du patient (présent / absent)
+  reminderSentAt: timestamp("reminder_sent_at"),
+  patientResponse: varchar("patient_response", { length: 20 }),
+  patientResponseAt: timestamp("patient_response_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
