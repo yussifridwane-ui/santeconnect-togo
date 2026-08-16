@@ -417,7 +417,7 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
                 onClick={() => setShowScanner(true)}
                 className="flex items-center gap-2 px-3 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-sm"
               >
-                <QrCode size={16} /> Scanner le QR
+                <QrCode size={16} /> Scanner la carte
               </button>
             </div>
             {photo && (

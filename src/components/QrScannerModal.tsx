@@ -123,8 +123,8 @@ export default function QrScannerModal({
                 <div className="absolute inset-6 border-2 border-emerald-400/80 rounded-xl pointer-events-none" />
               </div>
               <p className="text-xs text-gray-500 text-center mt-3">
-                📇 Cadrez le <b>QR code au dos de la carte d'assurance</b> — la lecture est
-                automatique et reste sur votre appareil.
+                📇 Cadrez le <b>QR code OU le code-barres rectangulaire</b> (PDF417) au dos de
+                la carte — la lecture est <b>automatique</b> et reste sur votre appareil.
               </p>
             </>
           )}
