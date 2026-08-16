@@ -428,6 +428,10 @@ const STATEMENTS: string[] = [
   `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurer_status varchar(20) NOT NULL DEFAULT 'none'`,
   `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurer_settled_at timestamp`,
   `CREATE INDEX IF NOT EXISTS idx_invoices_insurer ON invoices(insurer_id, insurer_status)`,
+
+  /* ---------- V2.8 : VERROUILLAGE ANTI BRUTE-FORCE PERSISTANT ---------- */
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS login_fails integer NOT NULL DEFAULT 0`,
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS login_locked_until timestamp`,
 ];
 
 /* 🛡️ Assureurs maladie du Togo — liste de départ, taux PAR DÉFAUT 80 %

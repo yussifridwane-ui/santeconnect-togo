@@ -3,9 +3,16 @@ import { jwtVerify } from "jose";
 import { pool } from "@/db";
 import { ensureMigrated } from "@/db/migrate";
 
-const KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || "togo-health-messaging-secret-key-2024"
-);
+/* 🔐 V2.8 — durcissement : en production, JWT_SECRET est OBLIGATOIRE
+   (plus de secret de secours falsifiable en ligne). */
+function jwtSecret(): Uint8Array {
+  const s = process.env.JWT_SECRET;
+  if (s) return new TextEncoder().encode(s);
+  if (process.env.NODE_ENV === "production" || process.env.NETLIFY) {
+    throw new Error("JWT_SECRET manquant dans l'environnement de production");
+  }
+  return new TextEncoder().encode("dev-only-secret-do-not-use-in-production");
+}
 
 import { sendEmail } from "@/lib/email";
 
@@ -27,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     let payload: { scope?: unknown; aid?: unknown; pid?: unknown };
     try {
-      const v = await jwtVerify(String(body.t || ""), KEY);
+      const v = await jwtVerify(String(body.t || ""), jwtSecret());
       payload = v.payload as typeof payload;
     } catch {
       return NextResponse.json({ error: "Lien invalide ou expiré" }, { status: 401 });

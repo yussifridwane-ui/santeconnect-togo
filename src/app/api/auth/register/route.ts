@@ -2,17 +2,46 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { users, patients, facilities, subscriptions } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { hashPassword, setSession } from "@/lib/auth";
+import { hashPassword, setSession, rateLimit } from "@/lib/auth";
 import { TRIAL_DAYS } from "@/lib/plans";
+import { audit } from "@/lib/audit";
+
+/* 🔐 Rôles ouverts à l'inscription publique :
+   - patient    : libre
+   - admin      : UNIQUEMENT en créant son propre établissement (porteur de cabinet)
+   Jamais doctor/nurse/secretary/lab/pharmacist ici : ces comptes naissent
+   exclusivement via Gestion d'équipe (V2.5), par l'admin du centre. */
+const REGISTERABLE = new Set(["patient", "admin"]);
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { fullName, email, password, phone, role, facilityId, createFacilityName, facilityCity, facilityAddress } = body;
+    const { fullName, email, password, phone, createFacilityName, facilityCity, facilityAddress } = body;
+
+    /* Anti-spam : max 5 créations de compte / heure / IP (best effort serverless) */
+    const ip = (request.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "inconnu";
+    if (!rateLimit(`register:${ip}`, 5, 60 * 60 * 1000)) {
+      return NextResponse.json({ error: "Trop de créations de compte. Réessayez plus tard." }, { status: 429 });
+    }
 
     if (!fullName || !email || !password) {
       return NextResponse.json(
         { error: "Tous les champs sont requis" },
+        { status: 400 }
+      );
+    }
+    if (String(password).length < 6) {
+      return NextResponse.json(
+        { error: "Mot de passe : 6 caractères minimum" },
+        { status: 400 }
+      );
+    }
+
+    /* 🛡️ V2.8 — on ne fait JAMAIS confiance au rôle ni au facilityId du client */
+    const safeRole = REGISTERABLE.has(String(body.role)) ? String(body.role) : "patient";
+    if (safeRole === "admin" && !createFacilityName) {
+      return NextResponse.json(
+        { error: "Pour un compte administrateur, crée d'abord ton établissement." },
         { status: 400 }
       );
     }
@@ -31,10 +60,13 @@ export async function POST(request: NextRequest) {
     }
 
     const hashedPassword = await hashPassword(password);
-    let finalFacilityId = facilityId ? parseInt(facilityId) : null;
+    /* 🛡️ V2.8 — RATACHÉ D'OFFICE : un nouvel inscrit n'est jamais rattaché à un
+       établissement EXISTANT par un simple facilityId envoyé par le client.
+       Seule voie : créer SON propre établissement (admin). */
+    let finalFacilityId: number | null = null;
 
-    // Create a new facility if requested
-    if (role !== "patient" && createFacilityName) {
+    // Create a new facility if requested (nouveau cabinet = nouveau compte admin)
+    if (safeRole === "admin" && createFacilityName) {
       const newFacility = await db
         .insert(facilities)
         .values({
@@ -57,13 +89,13 @@ export async function POST(request: NextRequest) {
         email,
         password: hashedPassword,
         phone: phone || null,
-        role: role || "patient",
+        role: safeRole,
         facilityId: finalFacilityId,
       })
       .returning();
 
     // Démarrage automatique de l'essai gratuit Pro (14 jours) pour tout nouveau cabinet
-    if (finalFacilityId && role !== "patient") {
+    if (finalFacilityId && safeRole === "admin") {
       await db.insert(subscriptions).values({
         facilityId: finalFacilityId,
         planId: "pro",
@@ -81,7 +113,12 @@ export async function POST(request: NextRequest) {
       facilityId: newUser[0].facilityId,
     });
 
-    if (role === "patient") {
+    await audit(
+      { id: newUser[0].id, fullName: newUser[0].fullName, email: newUser[0].email, role: newUser[0].role, facilityId: newUser[0].facilityId },
+      { action: "creer", entity: "utilisateur", entityId: newUser[0].id, detail: `Inscription publique (${safeRole})` },
+    );
+
+    if (safeRole === "patient") {
       await db.insert(patients).values({
         userId: newUser[0].id,
         facilityId: finalFacilityId || 1, // Default to clinic 1

@@ -27,6 +27,12 @@ const KIND_LABELS: Record<string, string> = {
   consultation: "Consultation", examen: "Examen", medicament: "Médicament", acte: "Acte", service: "Service",
 };
 
+/* 🛡️ V2.8 — Anti-XSS : tout texte injecté dans les fenêtres d'impression
+   (document.write) passe par cet échappement. Jamais de HTML brut. */
+const esc = (s: unknown) =>
+  String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
 interface Invoice {
   id: number; number: string; total_fcfa: number; paid_fcfa: number;
   status: string; method: string | null; created_at: string;
@@ -202,7 +208,7 @@ export default function FacturationPage() {
     const reste = f.total_fcfa - (f.insurer_share_fcfa || 0) - f.paid_fcfa;
     const lignesHtml = (lignes as { kind: string; label: string; qty: number; unit_price_fcfa: number; total_fcfa: number }[])
       .map((l) => `<tr>
-        <td>${KIND_LABELS[l.kind] || l.kind}</td><td>${l.label}</td>
+        <td>${esc(KIND_LABELS[l.kind] || l.kind)}</td><td>${esc(l.label)}</td>
         <td style="text-align:center">${l.qty}</td>
         <td style="text-align:right">${l.unit_price_fcfa.toLocaleString("fr-FR")}</td>
         <td style="text-align:right">${l.total_fcfa.toLocaleString("fr-FR")}</td>
@@ -222,13 +228,13 @@ export default function FacturationPage() {
         .foot{margin-top:40px;font-size:12px;color:#666;border-top:1px solid #ddd;padding-top:10px}
       </style></head><body>
       <div class="head">
-        <div><h2 style="margin:0;color:#059669">${f.facility_name || "SantéOnline"}</h2>
-          <div style="font-size:13px;color:#555">${f.facility_address || ""}<br>${f.facility_phone || ""}</div></div>
+        <div><h2 style="margin:0;color:#059669">${esc(f.facility_name) || "SantéOnline"}</h2>
+          <div style="font-size:13px;color:#555">${esc(f.facility_address)}<br>${esc(f.facility_phone)}</div></div>
         <div style="text-align:right"><h1 style="margin:0;font-size:22px">FACTURE</h1>
-          <b>${f.number}</b><br>${new Date(f.created_at).toLocaleDateString("fr-FR", { dateStyle: "long" })}</div>
+          <b>${esc(f.number)}</b><br>${new Date(f.created_at).toLocaleDateString("fr-FR", { dateStyle: "long" })}</div>
       </div>
-      <p style="margin-top:16px"><b>Patient :</b> ${f.patient_name || "—"} ${f.record_number ? `(Dossier ${f.record_number})` : ""}</p>
-      ${f.insurer_name ? `<p style="margin:0 0 6px;font-size:14px;color:#3730a3"><b>Assurance :</b> 🛡️ ${f.insurer_name} (${f.insurer_rate} %)${f.insured_number ? ` · N° assuré : <b>${f.insured_number}</b>` : ""}${f.care_sheet_number ? ` · Feuille de soins : <b>${f.care_sheet_number}</b>` : ""}</p>` : ""}
+      <p style="margin-top:16px"><b>Patient :</b> ${esc(f.patient_name) || "—"} ${f.record_number ? `(Dossier ${esc(f.record_number)})` : ""}</p>
+      ${f.insurer_name ? `<p style="margin:0 0 6px;font-size:14px;color:#3730a3"><b>Assurance :</b> 🛡️ ${esc(f.insurer_name)} (${f.insurer_rate} %)${f.insured_number ? ` · N° assuré : <b>${esc(f.insured_number)}</b>` : ""}${f.care_sheet_number ? ` · Feuille de soins : <b>${esc(f.care_sheet_number)}</b>` : ""}</p>` : ""}
       <table><thead><tr><th>Type</th><th>Libellé</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Total</th></tr></thead>
       <tbody>${lignesHtml}</tbody></table>
       <div class="tot">
@@ -256,7 +262,7 @@ export default function FacturationPage() {
     const partPatient = Number(f.total_fcfa) - Number(f.insurer_share_fcfa || 0);
     const lignesHtml = (lignes as { kind: string; label: string; qty: number; unit_price_fcfa: number; total_fcfa: number }[])
       .map((l) => `<tr>
-        <td>${KIND_LABELS[l.kind] || l.kind}</td><td>${l.label}</td>
+        <td>${esc(KIND_LABELS[l.kind] || l.kind)}</td><td>${esc(l.label)}</td>
         <td style="text-align:center">${l.qty}</td>
         <td style="text-align:right">${l.unit_price_fcfa.toLocaleString("fr-FR")}</td>
         <td style="text-align:right">${l.total_fcfa.toLocaleString("fr-FR")}</td>
@@ -279,15 +285,15 @@ export default function FacturationPage() {
       </style></head><body>
       <div class="head">
         <div><b style="color:#3730a3;font-size:18px">🛡️ SANTÉONLINE — FEUILLE DE SOINS</b>
-          <div style="font-size:12px;color:#555">${f.facility_name || ""}<br>${f.facility_address || ""} ${f.facility_phone ? "· " + f.facility_phone : ""}</div></div>
-        <div style="text-align:right;font-size:13px">Assureur : <b>${f.insurer_name || ""}</b><br>
+          <div style="font-size:12px;color:#555">${esc(f.facility_name)}<br>${esc(f.facility_address)} ${f.facility_phone ? "· " + esc(f.facility_phone) : ""}</div></div>
+        <div style="text-align:right;font-size:13px">Assureur : <b>${esc(f.insurer_name)}</b><br>
           Taux de prise en charge : <b>${f.insurer_rate} %</b></div>
       </div>
-      <h1>FEUILLE DE SOINS N° ${f.care_sheet_number}</h1>
-      <p class="num">Facture liée : ${f.number} · ${new Date(f.created_at).toLocaleDateString("fr-FR", { dateStyle: "long" })}</p>
+      <h1>FEUILLE DE SOINS N° ${esc(f.care_sheet_number)}</h1>
+      <p class="num">Facture liée : ${esc(f.number)} · ${new Date(f.created_at).toLocaleDateString("fr-FR", { dateStyle: "long" })}</p>
       <div class="box">
-        <b>Assuré(e) :</b> ${f.patient_name || "—"} ${f.record_number ? `(dossier ${f.record_number})` : ""}<br>
-        <b>N° d'assuré :</b> ${f.insured_number || "……………………"}<br>
+        <b>Assuré(e) :</b> ${esc(f.patient_name) || "—"} ${f.record_number ? `(dossier ${esc(f.record_number)})` : ""}<br>
+        <b>N° d'assuré :</b> ${esc(f.insured_number) || "……………………"}<br>
         <b>Soins dispensés le :</b> ${new Date(f.created_at).toLocaleDateString("fr-FR")}
       </div>
       <table><thead><tr><th>Nature</th><th>Soin / prestation</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Montant</th></tr></thead>

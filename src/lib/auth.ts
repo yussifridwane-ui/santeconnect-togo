@@ -2,9 +2,17 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || "togo-health-messaging-secret-key-2024"
-);
+/* 🔐 V2.8 — Durcissement : en PRODUCTION, le secret vient OBLIGATOIREMENT de
+   l'environnement. Le secret de secours ne fonctionne qu'en développement local
+   — jamais sur le site en ligne (empêche toute falsification de sessions). */
+function jwtSecret(): Uint8Array {
+  const s = process.env.JWT_SECRET;
+  if (s) return new TextEncoder().encode(s);
+  if (process.env.NODE_ENV === "production" || process.env.NETLIFY) {
+    throw new Error("JWT_SECRET manquant dans l'environnement de production");
+  }
+  return new TextEncoder().encode("dev-only-secret-do-not-use-in-production");
+}
 
 export interface UserSession {
   id: number;
@@ -30,16 +38,30 @@ export async function createToken(user: UserSession): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(SECRET_KEY);
+    .sign(jwtSecret());
 }
 
 export async function verifyToken(token: string): Promise<UserSession | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY);
+    const { payload } = await jwtVerify(token, jwtSecret());
     return payload as unknown as UserSession;
   } catch {
     return null;
   }
+}
+
+/* ⏱️ Rate limiting "best effort" en mémoire du processus (serverless : chaque
+   instance a sa mémoire) — complété par les verrous PERSISTANTS en base
+   (login, code dossier) qui eux survivent aux instances. Usage : endpoints
+   opportunistes (register, messages…). */
+const limiter = new Map<string, number[]>();
+export function rateLimit(key: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  const arr = (limiter.get(key) || []).filter((t) => now - t < windowMs);
+  if (arr.length >= max) return false;
+  arr.push(now);
+  limiter.set(key, arr);
+  return true;
 }
 
 export async function getSession(): Promise<UserSession | null> {

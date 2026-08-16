@@ -12,9 +12,16 @@ import { sendSms, sendWhatsapp, toE164 } from "@/lib/messaging";
  * au sondage de présence en 1 clic (✅ présent / ❌ empêché), sans se connecter.
  * Dès sa réponse, le médecin reçoit AUTOMATIQUEMENT une notification (+ e-mail).
  */
-const KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || "togo-health-messaging-secret-key-2024"
-);
+/* 🔐 V2.8 — durcissement : en production, JWT_SECRET est OBLIGATOIRE
+   (plus de secret de secours falsifiable en ligne). */
+function jwtSecret(): Uint8Array {
+  const s = process.env.JWT_SECRET;
+  if (s) return new TextEncoder().encode(s);
+  if (process.env.NODE_ENV === "production" || process.env.NETLIFY) {
+    throw new Error("JWT_SECRET manquant dans l'environnement de production");
+  }
+  return new TextEncoder().encode("dev-only-secret-do-not-use-in-production");
+}
 
 let lastRunAt = 0;
 
@@ -50,7 +57,7 @@ export async function runDueReminders(origin: string): Promise<{ scanned: number
       .setProtectedHeader({ alg: "HS256" })
       .setIssuedAt()
       .setExpirationTime(when.getTime() / 1000 + 3600 * 12)
-      .sign(KEY);
+      .sign(jwtSecret());
     const link = `${origin}/confirmer-rendez-vous?t=${encodeURIComponent(token)}`;
     const linkOui = `${link}&r=oui`;
     const linkNon = `${link}&r=non`;

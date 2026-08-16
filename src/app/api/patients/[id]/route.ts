@@ -168,8 +168,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    /* 🛡️ V2.8 — Suppression de fiche : ADMIN uniquement, de SON établissement.
+       Un patient, un médecin ou un prestataire extérieur ne peut jamais
+       supprimer une fiche (règle d'or SantéOnline : traçabilité absolue). */
+    if (session.role !== "admin") {
+      return NextResponse.json(
+        { error: "Seul l'administrateur peut supprimer une fiche patient" },
+        { status: 403 },
+      );
+    }
+
     const { id } = await params;
     const patientId = parseInt(id);
+    const target = await db
+      .select({ facilityId: patients.facilityId })
+      .from(patients)
+      .where(eq(patients.id, patientId))
+      .limit(1);
+    if (target.length > 0 && session.facilityId && target[0].facilityId !== session.facilityId) {
+      return NextResponse.json({ error: "Ce patient appartient à un autre établissement" }, { status: 403 });
+    }
     await db
       .delete(patients)
       .where(eq(patients.id, patientId));

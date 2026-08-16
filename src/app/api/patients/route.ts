@@ -15,6 +15,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    /* 🛡️ V2.8 — La liste des patients est réservée au PERSONNEL.
+       Un compte patient ne lit que SON dossier (via /api/patient-portal/*). */
+    if (session.role === "patient") {
+      return NextResponse.json({ error: "Accès réservé au personnel de santé" }, { status: 403 });
+    }
+
     await ensureMigrated();
     const facilityId = session.facilityId || 1;
 

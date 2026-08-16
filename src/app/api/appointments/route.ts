@@ -114,15 +114,34 @@ export async function POST(request: NextRequest) {
     const duration = body.duration || 30;
     const endDate = new Date(scheduledDate.getTime() + duration * 60000);
 
+    /* 🛡️ V2.8 — IDOR : un PATIENT ne peut créer un RDV que pour LUI-MÊME,
+       toujours en statut « pending ». Le patientId du client est ignoré. */
+    let patientId: number;
+    let status = body.status || "pending";
+    if (session.role === "patient") {
+      const { pool } = await import("@/db");
+      const pr = await pool.query(`SELECT id FROM patients WHERE user_id = $1`, [session.id]);
+      if (!pr.rows[0]) {
+        return NextResponse.json({ error: "Aucun dossier patient lié à ce compte." }, { status: 404 });
+      }
+      patientId = pr.rows[0].id;
+      status = "pending";
+    } else {
+      patientId = parseInt(body.patientId);
+    }
+    if (!patientId || isNaN(patientId)) {
+      return NextResponse.json({ error: "Patient manquant ou invalide." }, { status: 400 });
+    }
+
     const newAppointment = await db
       .insert(appointments)
       .values({
-        patientId: parseInt(body.patientId),
+        patientId,
         facilityId: currentFacilityId, // Always bind to the current clinic/cabinet
         doctorId: body.doctorId ? parseInt(body.doctorId) : null,
         title: body.title,
         type: body.type || "consultation",
-        status: body.status || "pending",
+        status,
         scheduledDate,
         endDate,
         notes: body.notes,

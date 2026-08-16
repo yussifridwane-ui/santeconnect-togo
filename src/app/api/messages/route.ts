@@ -11,8 +11,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get("userId") || session.id.toString();
+    /* 🛡️ V2.8 — IDOR : on lit UNIQUEMENT ses propres messages. Le paramètre
+       userId du client est désormais ignoré (confidentialité inter-personnel). */
+    const userId = session.id;
 
     const result = await db
       .select({
@@ -33,8 +34,8 @@ export async function GET(request: NextRequest) {
       .leftJoin(facilities, eq(messages.facilityId, facilities.id))
       .where(
         or(
-          eq(messages.senderId, parseInt(userId)),
-          eq(messages.receiverId, parseInt(userId))
+          eq(messages.senderId, userId),
+          eq(messages.receiverId, userId)
         )
       )
       .orderBy(desc(messages.createdAt));
@@ -53,18 +54,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
 
+    /* 🛡️ V2.8 — La messagerie interne est réservée au PERSONNEL de santé */
+    if (!["admin", "doctor", "nurse", "secretary", "lab", "pharmacist"].includes(session.role)) {
+      return NextResponse.json({ error: "Messagerie réservée au personnel" }, { status: 403 });
+    }
+    /* Rate limiting : max 30 messages / minute / utilisateur */
+    const { rateLimit } = await import("@/lib/auth");
+    if (!rateLimit(`messages:${session.id}`, 30, 60 * 1000)) {
+      return NextResponse.json({ error: "Trop de messages envoyés. Respire un peu 🙂" }, { status: 429 });
+    }
+
     const body = await request.json();
 
+    /* 🛡️ V2.8 — senderId et facilityId viennent de la SESSION serveur, jamais
+       du client : impossible d'écrire au nom de quelqu'un d'autre (usurpation),
+       ni d'envoyer un message « système » soi-même. */
     const newMessage = await db
       .insert(messages)
       .values({
-        senderId: parseInt(body.senderId),
+        senderId: session.id,
         receiverId: parseInt(body.receiverId),
-        facilityId: body.facilityId ? parseInt(body.facilityId) : null,
-        subject: body.subject,
-        content: body.content,
+        facilityId: session.facilityId || null,
+        subject: String(body.subject || "").slice(0, 200),
+        content: String(body.content || "").slice(0, 5000),
         status: "unread",
-        isSystemMessage: body.isSystemMessage || false,
+        isSystemMessage: false,
       })
       .returning();
 

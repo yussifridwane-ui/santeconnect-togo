@@ -52,15 +52,27 @@ export async function GET(
       detail: `Document « ${doc.title} » consulté/téléchargé par ${session.fullName}`,
     });
 
-    /* data: URL → binaire */
+    /* data: URL → binaire — 🛡️ V2.8 : l'affichage inline n'est servi QUE pour les
+       types sûrs (PDF/images). Tout le reste (anciens fichiers inclus) est forcé
+       en téléchargement octet-stream → jamais exécuté par le navigateur. */
+    const SAFE_INLINE = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+    const mime = String(doc.mime || "");
     const base64 = String(doc.data || "").split(",")[1] || "";
     const bytes = Buffer.from(base64, "base64");
     return new NextResponse(bytes, {
-      headers: {
-        "Content-Type": doc.mime || "application/octet-stream",
-        "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(doc.title)}`,
-        "Cache-Control": "private, no-store",
-      },
+      headers: SAFE_INLINE.has(mime)
+        ? {
+            "Content-Type": mime,
+            "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(String(doc.title).replace(/[^\w .-]/g, "_"))}`,
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+          }
+        : {
+            "Content-Type": "application/octet-stream",
+            "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(String(doc.title).replace(/[^\w .-]/g, "_"))}`,
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+          },
     });
   } catch (error) {
     console.error("Download document error:", error);

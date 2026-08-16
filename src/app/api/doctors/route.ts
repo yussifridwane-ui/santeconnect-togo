@@ -32,6 +32,14 @@ export async function GET(request: NextRequest) {
           : eq(users.role, "doctor")
       );
 
+    /* 🔐 V2.8 — Minimisation : un PATIENT ne doit recevoir que le strict
+       nécessaire (nom + établissement). Emails/téléphones = réservé au personnel. */
+    if (session.role === "patient") {
+      return NextResponse.json(
+        result.map((d) => ({ id: d.id, fullName: d.fullName, facilityName: d.facilityName })),
+      );
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Get doctors error:", error);

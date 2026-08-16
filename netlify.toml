@@ -50,7 +50,7 @@
   status = 200
   conditions = {Host = ["sikastock.tg", "www.sikastock.tg", "sikastock.netlify.app", "sikastock-togo.netlify.app", "sikastocktg.netlify.app"]}
 
-# En-têtes de sécurité recommandés pour une app médicale
+# 🔐 En-têtes de sécurité renforcés pour une app médicale (audit V2.8)
 [[headers]]
   for = "/*"
   [headers.values]
@@ -58,6 +58,13 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-XSS-Protection = "1; mode=block"
+    # HTTPS forcé 1 an (HSTS) — aucune connexion en clair n'est acceptée ensuite
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    # Aucun accès caméra/micro/géoloc par défaut — la plateforme n'en a pas besoin
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    # CSP pragmatique Next.js : scripts/styles inline autorisés (hydratation),
+    # aucun domaine externe, aucun iframe embarqué
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
 
 # NOTE IMPORTANTE :
 # Les variables DATABASE_URL et JWT_SECRET ne doivent JAMAIS être

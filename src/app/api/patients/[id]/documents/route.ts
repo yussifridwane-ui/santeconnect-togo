@@ -6,6 +6,15 @@ import { audit, STAFF_ROLES, hasRole } from "@/lib/audit";
 
 const MAX_BYTES = 1_800_000; // ~1,8 Mo — scan/photo de rapport (Copie sécurisée en base Neon)
 
+/* 🛡️ V2.8 — Liste blanche stricte : rapports médicaux = PDF ou images.
+   Jamais de SVG/HTML/JS (exécutables) — un fichier piégé ne passera jamais. */
+const ALLOWED_MIME = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+
 /**
  * POST /api/patients/[id]/documents — déposer un RAPPORT MÉDICAL (scan/photo PDF ou image).
  * Stocké comme document clinique du dossier (mime + base64). GET = liste des métadonnées.
@@ -34,6 +43,17 @@ export async function POST(
 
     if (!title) return NextResponse.json({ error: "Titre du document obligatoire" }, { status: 400 });
     if (!data.startsWith("data:")) return NextResponse.json({ error: "Fichier invalide" }, { status: 400 });
+    if (!ALLOWED_MIME.has(mime)) {
+      return NextResponse.json(
+        { error: "Type de fichier refusé — uniquement PDF, JPG, PNG ou WEBP (jamais de fichier exécutable)." },
+        { status: 415 },
+      );
+    }
+    /* Le mime déclaré doit coller au préfixe data: réel */
+    const actualMime = data.slice(5, data.indexOf(";")).toLowerCase();
+    if (actualMime !== mime) {
+      return NextResponse.json({ error: "Type de fichier incohérent avec son contenu." }, { status: 400 });
+    }
     const estBytes = Math.round(data.length * 0.75);
     if (estBytes > MAX_BYTES) {
       return NextResponse.json({ error: "Fichier trop lourd (max 1,8 Mo — compresse la photo du rapport)" }, { status: 413 });
