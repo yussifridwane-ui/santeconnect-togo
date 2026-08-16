@@ -457,6 +457,18 @@ const STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_patient_ins_patient ON patient_insurances(patient_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS uniq_patient_primary_ins ON patient_insurances(patient_id) WHERE is_primary`,
+
+  /* ---------- V3.1 : SCANNER QR + SITES OFFICIELS DES ASSUREURS ----------
+     qr_payload : contenu brut du QR code scanné au dos de la carte
+     (lien de vérification ou identifiant assuré). Jamais affiché au public.
+     website : portail officiel de l'assureur → bouton « Site de l'assureur ».
+     Les UPDATE ne remplissent que les cases VIDES : aucune donnée existante
+     n'est jamais écrasée (règle d'or : additif uniquement). */
+  `ALTER TABLE patient_insurances ADD COLUMN IF NOT EXISTS qr_payload text`,
+  `ALTER TABLE insurers ADD COLUMN IF NOT EXISTS website varchar(180)`,
+  `UPDATE insurers SET website = 'https://amu.inam.tg/' WHERE (website IS NULL OR website = '') AND name ILIKE '%inam%'`,
+  `UPDATE insurers SET website = 'https://cnss.tg/' WHERE (website IS NULL OR website = '') AND name ILIKE '%cnss%'`,
+  `UPDATE insurers SET website = 'https://www.sunu-sante.com/' WHERE (website IS NULL OR website = '') AND name ILIKE '%sunu%'`,
 ];
 
 /* 🛡️ Assureurs maladie du Togo — liste de départ, taux PAR DÉFAUT 80 %

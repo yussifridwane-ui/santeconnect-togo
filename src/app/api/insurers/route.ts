@@ -17,7 +17,7 @@ export async function GET() {
     if (!session) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     await ensureMigrated();
     const rows = await pool.query(
-      `SELECT id, name, rate, phone FROM insurers ORDER BY id ASC`,
+      `SELECT id, name, rate, phone, website FROM insurers ORDER BY id ASC`,
     );
     return NextResponse.json({ items: rows.rows });
   } catch (e) {
@@ -69,10 +69,14 @@ export async function PUT(request: NextRequest) {
     const rate = body.rate !== undefined ? Math.min(100, Math.max(0, parseInt(body.rate) || 0)) : null;
     const name = body.name ? String(body.name).trim().slice(0, 120) : null;
     const phone = body.phone !== undefined ? String(body.phone || "").slice(0, 30) : null;
+    const website = body.website !== undefined ? String(body.website || "").trim().slice(0, 180) : null;
 
     if (rate !== null) await pool.query(`UPDATE insurers SET rate = $1 WHERE id = $2`, [rate, id]);
     if (name) await pool.query(`UPDATE insurers SET name = $1 WHERE id = $2`, [name, id]);
     if (phone !== null) await pool.query(`UPDATE insurers SET phone = $1 WHERE id = $2`, [phone, id]);
+    if (website !== null && (website === "" || website.startsWith("https://"))) {
+      await pool.query(`UPDATE insurers SET website = $1 WHERE id = $2`, [website || null, id]);
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("insurers PUT:", e);

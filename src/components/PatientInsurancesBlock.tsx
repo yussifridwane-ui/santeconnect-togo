@@ -19,7 +19,10 @@ import {
   Loader2,
   X,
   Camera,
+  QrCode,
+  Globe,
 } from "lucide-react";
+import QrScannerModal from "@/components/QrScannerModal";
 
 export interface PatientInsurance {
   id: number;
@@ -32,6 +35,8 @@ export interface PatientInsurance {
   is_primary: boolean;
   card_document_id: number | null;
   card_serial: string | null;
+  qr_payload: string | null;
+  insurer_website: string | null;
   verified_at: string | null;
   notes: string | null;
   created_at: string;
@@ -82,7 +87,12 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
   const [photo, setPhoto] = useState<{ dataUrl: string; mime: string } | null>(null);
   const [isPrimary, setIsPrimary] = useState(false);
   const [notes, setNotes] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
+  /* ▦ V3.1 — QR scanné + fenêtre du scanner */
+  const [qrPayload, setQrPayload] = useState("");
+  const [showScanner, setShowScanner] = useState(false);
+  /* Deux sources photo distinctes : caméra DIRECTE ou galerie */
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   const fetchRows = useCallback(async () => {
     try {
@@ -100,8 +110,9 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
     fetchRows();
     fetch("/api/insurers")
       .then((r) => (r.ok ? r.json() : []))
-      .then((d: InsurerLite[] | { insurers?: InsurerLite[] }) => {
-        const arr = Array.isArray(d) ? d : d.insurers || [];
+      .then((d: InsurerLite[] | { insurers?: InsurerLite[]; items?: InsurerLite[] }) => {
+        /* L'API renvoie { items: [...] } — on accepte aussi tableau brut (souplesse) */
+        const arr = Array.isArray(d) ? d : d.items || d.insurers || [];
         /* Tri préférence cahier des charges : INAM d'abord, CNSS ensuite */
         const rank = (n: string) => (/inam/i.test(n) ? 0 : /cnss/i.test(n) ? 1 : 2);
         setInsurers([...arr].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name)));
@@ -118,6 +129,7 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
     setPhoto(null);
     setIsPrimary(false);
     setNotes("");
+    setQrPayload("");
     setError("");
   };
 
@@ -135,6 +147,7 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
     setStatus(r.status);
     setIsPrimary(r.is_primary);
     setNotes(r.notes || "");
+    setQrPayload(r.qr_payload || "");
     setShowForm(true);
   };
 
@@ -155,6 +168,22 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
     const reader = new FileReader();
     reader.onload = () => setPhoto({ dataUrl: String(reader.result), mime });
     reader.readAsDataURL(f);
+  };
+
+  /* ▦ QR détecté : si c'est visiblement un identifiant assuré (et non un lien),
+     on remplit le N° d'assuré automatiquement — gain de temps au comptoir. */
+  const onQrResult = (text: string) => {
+    setShowScanner(false);
+    const clean = text.trim();
+    if (!clean) return;
+    setQrPayload(clean);
+    if (
+      !/^https?:\/\//i.test(clean) &&
+      /^[A-Za-z0-9][A-Za-z0-9\-/.]{3,39}$/.test(clean) &&
+      !number.trim()
+    ) {
+      setNumber(clean);
+    }
   };
 
   const save = async () => {
@@ -202,6 +231,7 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
         isPrimary,
         notes: notes.trim() || null,
         cardDocumentId,
+        qrPayload: qrPayload || null,
       };
       const res = await fetch(
         editing
@@ -347,38 +377,83 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
             </select>
           </div>
 
-          {/* 5. Photo de la carte (caméra téléphone OK) */}
+          {/* 5. Photo de la carte : CAMÉRA DIRECTE, GALERIE ou SCAN QR ▦ */}
           <div>
             <label className="text-xs font-semibold text-gray-600">
-              Photo de la carte (optionnel — 📱 le téléphone propose « Prendre une photo »)
+              Photo / QR de la carte (optionnel — 📷 l'appareil photo s'ouvre directement)
             </label>
-            <div className="mt-1 flex items-center gap-3">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(e) => onPickPhoto(e.target.files?.[0] || null)}
-              />
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => onPickPhoto(e.target.files?.[0] || null)}
+            />
+            <input
+              ref={galleryRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => onPickPhoto(e.target.files?.[0] || null)}
+            />
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => cameraRef.current?.click()}
                 className="flex items-center gap-2 px-3 py-2.5 border border-dashed border-indigo-300 text-indigo-700 rounded-xl text-sm font-semibold hover:bg-indigo-50"
               >
-                <Camera size={16} /> {photo ? "Changer la photo" : "Photographier la carte"}
+                <Camera size={16} /> {photo ? "Reprendre la photo" : "📷 Prendre une photo"}
               </button>
-              {photo && (
-                <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
-                  <ImageIcon size={14} /> Photo prête ✓
-                  <button onClick={() => setPhoto(null)} className="text-red-400 hover:text-red-600 ml-1">
-                    <X size={14} />
-                  </button>
-                </span>
-              )}
-              {!photo && editing?.card_document_id && (
-                <span className="text-xs text-gray-500">Carte actuelle conservée ✓</span>
-              )}
+              <button
+                type="button"
+                onClick={() => galleryRef.current?.click()}
+                className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50"
+              >
+                <ImageIcon size={15} /> Galerie
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowScanner(true)}
+                className="flex items-center gap-2 px-3 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-sm"
+              >
+                <QrCode size={16} /> Scanner le QR
+              </button>
             </div>
+            {photo && (
+              <p className="mt-2 text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                <ImageIcon size={14} /> Photo prête ✓
+                <button onClick={() => setPhoto(null)} className="text-red-400 hover:text-red-600 ml-1">
+                  <X size={14} />
+                </button>
+              </p>
+            )}
+            {!photo && editing?.card_document_id && (
+              <p className="mt-2 text-xs text-gray-500">Carte actuelle conservée ✓</p>
+            )}
+            {qrPayload && (
+              <div className="mt-2 text-xs bg-white border border-indigo-100 rounded-lg px-2.5 py-1.5 flex items-center gap-2">
+                <QrCode size={14} className="text-indigo-600 flex-shrink-0" />
+                <span className="truncate font-mono text-gray-600">{qrPayload}</span>
+                {/^https?:\/\//i.test(qrPayload) && (
+                  <a
+                    href={qrPayload}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-700 font-bold hover:underline flex-shrink-0"
+                  >
+                    🔗 Ouvrir
+                  </a>
+                )}
+                <button
+                  onClick={() => setQrPayload("")}
+                  className="text-red-400 hover:text-red-600 ml-auto flex-shrink-0"
+                  title="Retirer le QR"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 6. Primaire */}
@@ -509,6 +584,26 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
                     <ImageIcon size={13} /> Voir la carte
                   </a>
                 )}
+                {r.qr_payload && /^https?:\/\//i.test(r.qr_payload) && (
+                  <a
+                    href={r.qr_payload}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2.5 py-1.5 border border-emerald-200 text-emerald-700 rounded-lg text-xs font-semibold hover:bg-emerald-50"
+                  >
+                    <QrCode size={13} /> Lien QR scanné
+                  </a>
+                )}
+                {r.insurer_website && (
+                  <a
+                    href={r.insurer_website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2.5 py-1.5 border border-indigo-200 text-indigo-700 rounded-lg text-xs font-semibold hover:bg-indigo-50"
+                  >
+                    <Globe size={13} /> Site de l'assureur
+                  </a>
+                )}
                 <button
                   onClick={() => remove(r)}
                   className="flex items-center gap-1 px-2.5 py-1.5 border border-red-200 text-red-600 rounded-lg text-xs font-semibold hover:bg-red-50 ml-auto"
@@ -519,6 +614,11 @@ export default function PatientInsurancesBlock({ patientId }: { patientId: strin
             </div>
           ))}
         </div>
+      )}
+
+      {/* ▦ Fenêtre du scanner QR caméra */}
+      {showScanner && (
+        <QrScannerModal onResult={onQrResult} onClose={() => setShowScanner(false)} />
       )}
     </div>
   );

@@ -91,6 +91,8 @@ export async function PUT(
     const status = STATUS_OK.has(String(body.status)) ? String(body.status) : "inconnu";
     const notes = String(body.notes || "").trim().slice(0, 1000) || null;
     const cardDocumentId = body.cardDocumentId ? parseInt(String(body.cardDocumentId)) : null;
+    /* ▦ V3.1 — QR re-scanné → remplace ; sinon on conserve l'existant */
+    const qrPayload = String(body.qrPayload || "").trim().slice(0, 2000) || null;
 
     if (!insuranceNumber) {
       return NextResponse.json({ error: "Le numéro d'assuré est obligatoire" }, { status: 400 });
@@ -120,9 +122,10 @@ export async function PUT(
     await pool.query(
       `UPDATE patient_insurances
        SET insurer_id = $1, insurer_name_other = $2, insurance_number = $3,
-           status = $4, notes = $5, card_document_id = $6, updated_at = now()
+           status = $4, notes = $5, card_document_id = $6,
+           qr_payload = COALESCE($8, qr_payload), updated_at = now()
        WHERE id = $7`,
-      [insurerId, insurerId ? null : insurerNameOther, insuranceNumber, status, notes, newCardId, insuranceId],
+      [insurerId, insurerId ? null : insurerNameOther, insuranceNumber, status, notes, newCardId, insuranceId, qrPayload],
     );
 
     /* Case « primaire » dans le formulaire (ou bouton dédié) : une seule primaire */

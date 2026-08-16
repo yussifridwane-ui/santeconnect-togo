@@ -50,8 +50,10 @@ export async function GET(
     const r = await pool.query(
       `SELECT pi.id, pi.insurer_id, pi.insurer_name_other, pi.insurance_number,
               pi.status, pi.is_primary, pi.card_document_id, pi.card_serial,
+              pi.qr_payload,
               pi.verified_at, pi.notes, pi.created_at, pi.updated_at,
-              i.name AS insurer_name, i.rate AS insurer_rate, i.phone AS insurer_phone
+              i.name AS insurer_name, i.rate AS insurer_rate, i.phone AS insurer_phone,
+              i.website AS insurer_website
        FROM patient_insurances pi
        LEFT JOIN insurers i ON i.id = pi.insurer_id
        WHERE pi.patient_id = $1
@@ -90,6 +92,8 @@ export async function POST(
     const notes = String(body.notes || "").trim().slice(0, 1000) || null;
     const requestedPrimary = body.isPrimary === true;
     const cardDocumentId = body.cardDocumentId ? parseInt(String(body.cardDocumentId)) : null;
+    /* ▦ V3.1 — contenu du QR scanné au dos de la carte (lien ou identifiant) */
+    const qrPayload = String(body.qrPayload || "").trim().slice(0, 2000) || null;
 
     /* Cahier des charges : assureur ET numéro obligatoires, le reste optionnel */
     if (!insuranceNumber) {
@@ -141,11 +145,11 @@ export async function POST(
     const r = await pool.query(
       `INSERT INTO patient_insurances
          (patient_id, insurer_id, insurer_name_other, insurance_number, status,
-          is_primary, card_document_id, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+          is_primary, card_document_id, notes, qr_payload)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
        RETURNING id`,
       [pid, insurerId, insurerId ? null : insurerNameOther, insuranceNumber, status,
-       mustBePrimary, cardDocumentId, notes],
+       mustBePrimary, cardDocumentId, notes, qrPayload],
     );
 
     const label = insurerId
