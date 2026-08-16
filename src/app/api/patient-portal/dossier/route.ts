@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     await ensureMigrated();
     const r = await pool.query(
       `SELECT p.id, p.record_number, p.first_name, p.last_name, p.date_of_birth, p.gender, p.blood_type,
-              p.medical_notes, p.insurer_name, p.coverage_status, u.full_name, u.email, u.phone
+              p.medical_notes, p.insurer_name, p.insured_number, p.coverage_status, u.full_name, u.email, u.phone
        FROM patients p JOIN users u ON u.id = p.user_id
        WHERE p.user_id = $1`,
       [session.id],
@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
         bloodType: p.blood_type,
         medicalNotes: p.medical_notes,
         insurerName: p.insurer_name,
+        insuredNumber: p.insured_number,
         coverageStatus: p.coverage_status,
       },
       exams: exams.rows,

@@ -412,6 +412,35 @@ const STATEMENTS: string[] = [
 
   /* ---------- V2.5 : GESTION DE CABINET (facturation — rappel impayés) ---------- */
   `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS reminded_at timestamp`,
+
+  /* ---------- V2.7 : MODULE ASSURANCES MALADIE (tiers payant togolais) ---------- */
+  `CREATE TABLE IF NOT EXISTS insurers (
+    id serial PRIMARY KEY,
+    name varchar(120) NOT NULL UNIQUE,
+    rate integer NOT NULL DEFAULT 80,
+    phone varchar(30),
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurer_id integer`,
+  `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurer_share_fcfa integer NOT NULL DEFAULT 0`,
+  `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insured_number varchar(100)`,
+  `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS care_sheet_number varchar(40)`,
+  `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurer_status varchar(20) NOT NULL DEFAULT 'none'`,
+  `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS insurer_settled_at timestamp`,
+  `CREATE INDEX IF NOT EXISTS idx_invoices_insurer ON invoices(insurer_id, insurer_status)`,
+];
+
+/* 🛡️ Assureurs maladie du Togo — liste de départ, taux PAR DÉFAUT 80 %
+   (réglable assureur par assureur dans Facturation → ⚙️ Assureurs). */
+const INSURER_SEED = [
+  "INAM — Assurance Maladie Universelle",
+  "CNSS (AMU secteur privé)",
+  "SUNU Assurances",
+  "NSIA Assurances",
+  "SANLAM Togo",
+  "GTA — Groupement Togolais d'Assurances",
+  "ASKOMA",
+  "Autre assureur / mutuelle",
 ];
 
 let migrating: Promise<void> | null = null;
@@ -429,12 +458,23 @@ export function ensureMigrated(): Promise<void> {
         }
       }
       console.log("[migrate] ✅ schéma SantéOnline v2 prêt");
+      await seedInsurers();
       await seedExamModule();
     })().catch((e) => {
       console.error("[migrate] échec global (non bloquant):", e);
     });
   }
   return migrating;
+}
+
+/** Assureurs de référence — insérés une seule fois (ON CONFLICT DO NOTHING). */
+async function seedInsurers(): Promise<void> {
+  for (const name of INSURER_SEED) {
+    await pool.query(
+      `INSERT INTO insurers (name, rate) VALUES ($1, 80) ON CONFLICT (name) DO NOTHING`,
+      [name],
+    );
+  }
 }
 
 /** Contenu de référence du module Examens — inséré une seule fois (ON CONFLICT DO NOTHING). */

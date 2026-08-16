@@ -29,8 +29,10 @@ export async function GET(_request: NextRequest, { params }: Params) {
     const { id } = await params;
     const inv = await pool.query(
       `SELECT i.*, pu.full_name AS patient_name, pu.phone AS patient_phone,
-              p.record_number, f.name AS facility_name, f.address AS facility_address, f.phone AS facility_phone
+              p.record_number, f.name AS facility_name, f.address AS facility_address, f.phone AS facility_phone,
+              s.name AS insurer_name, s.rate AS insurer_rate
        FROM invoices i
+       LEFT JOIN insurers s ON s.id = i.insurer_id
        LEFT JOIN patients p ON p.id = i.patient_id
        LEFT JOIN users pu ON pu.id = p.user_id
        LEFT JOIN facilities f ON f.id = i.facility_id
@@ -85,12 +87,37 @@ export async function PUT(request: NextRequest, { params }: Params) {
     );
     const inv = cur.rows[0];
     if (!inv) return NextResponse.json({ error: "Facture introuvable." }, { status: 404 });
+
+    /* 🤝 V2.7 : « l'assureur a payé sa part » — la facture devient soldée si
+       le patient a déjà payé SA part. */
+    if (body.action === "settle-insurer") {
+      if (Number(inv.insurer_share_fcfa || 0) === 0 || inv.insurer_status !== "a_reclamer") {
+        return NextResponse.json({ error: "Aucune part assureur à régler sur cette facture." }, { status: 400 });
+      }
+      const partPatient = Number(inv.total_fcfa) - Number(inv.insurer_share_fcfa);
+      const newStatus = (inv.paid_fcfa || 0) >= partPatient ? "paid" : inv.status;
+      await pool.query(
+        `UPDATE invoices SET insurer_status = 'reglee', insurer_settled_at = now(), status = $1, updated_at = now()
+         WHERE id = $2`,
+        [newStatus, inv.id],
+      );
+      await audit(session, {
+        action: "modifier", entity: "facture", entityId: inv.id, patientId: inv.patient_id,
+        detail: `Assureur a réglé sa part — ${inv.care_sheet_number || inv.number} (${inv.insurer_share_fcfa} FCFA)`,
+      });
+      return NextResponse.json({ ok: true, status: newStatus });
+    }
+
     if (inv.status === "paid") {
       return NextResponse.json({ error: "Cette facture est déjà soldée." }, { status: 400 });
     }
 
-    const newPaid = Math.min(inv.total_fcfa, (inv.paid_fcfa || 0) + amount);
-    const newStatus = newPaid >= inv.total_fcfa ? "paid" : "partial";
+    /* Avec tiers payant, le PATIENT ne paie que SA part (total - part assureur).
+       « Soldée » = part patient payée + (pas d'assureur OU assureur réglé). */
+    const patientShare = Number(inv.total_fcfa) - Number(inv.insurer_share_fcfa || 0);
+    const newPaid = Math.min(patientShare, (inv.paid_fcfa || 0) + amount);
+    const insurerOk = Number(inv.insurer_share_fcfa || 0) === 0 || inv.insurer_status === "reglee";
+    const newStatus = newPaid >= patientShare && insurerOk ? "paid" : "partial";
     await pool.query(
       `UPDATE invoices SET paid_fcfa = $1, status = $2, method = $3, updated_at = now() WHERE id = $4`,
       [newPaid, newStatus, method, inv.id],
@@ -110,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
             newStatus === "paid" ? `✅ Facture ${inv.number} soldée` : `🧾 Paiement reçu — ${inv.number}`,
             newStatus === "paid"
               ? `Merci ! Ta facture ${inv.number} (${inv.total_fcfa} FCFA) est entièrement réglée (${methodLabel}).`
-              : `Paiement de ${amount} FCFA reçu (${methodLabel}). Reste à payer : ${inv.total_fcfa - newPaid} FCFA.`,
+              : `Paiement de ${amount} FCFA reçu (${methodLabel}). Reste à payer : ${patientShare - newPaid} FCFA.`,
           ],
         );
       }

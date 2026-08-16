@@ -41,9 +41,12 @@ export async function GET(request: NextRequest) {
 
     const list = await pool.query(
       `SELECT i.id, i.number, i.total_fcfa, i.paid_fcfa, i.status, i.method, i.created_at,
+              i.insurer_id, i.insurer_share_fcfa, i.care_sheet_number, i.insured_number, i.insurer_status,
+              s.name AS insurer_name, s.rate AS insurer_rate,
               pu.full_name AS patient_name, p.id AS patient_id,
               (SELECT COUNT(*)::int FROM invoice_items ii WHERE ii.invoice_id = i.id) AS items_count
        FROM invoices i
+       LEFT JOIN insurers s ON s.id = i.insurer_id
        LEFT JOIN patients p ON p.id = i.patient_id
        LEFT JOIN users pu ON pu.id = p.user_id
        WHERE ${conds.join(" AND ")}
@@ -51,10 +54,13 @@ export async function GET(request: NextRequest) {
       params,
     );
 
+    /* Part patient = total - part assureur ; « en attente » = ce que les PATIENTS
+       doivent encore ; « dû assureurs » = ce que les ASSUREURS doivent encore. */
     const stats = await pool.query(
       `SELECT COALESCE(SUM(total_fcfa),0)::bigint AS billed,
               COALESCE(SUM(paid_fcfa),0)::bigint AS collected,
-              COALESCE(SUM(GREATEST(total_fcfa - paid_fcfa, 0)),0)::bigint AS outstanding
+              COALESCE(SUM(GREATEST(total_fcfa - insurer_share_fcfa - paid_fcfa, 0)),0)::bigint AS outstanding,
+              COALESCE(SUM(CASE WHEN insurer_status <> 'reglee' THEN insurer_share_fcfa ELSE 0 END),0)::bigint AS insurer_due
        FROM invoices i WHERE ${conds.join(" AND ")}`,
       params,
     );
@@ -106,12 +112,38 @@ export async function POST(request: NextRequest) {
     );
     const number = `FA-${year}-${String((seq.rows[0]?.n ?? 0) + 1).padStart(4, "0")}`;
 
-    const ins = await pool.query(
-      `INSERT INTO invoices (patient_id, facility_id, number, discount_fcfa, total_fcfa, paid_fcfa, status, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,0,'unpaid',$6,$7) RETURNING id`,
-      [patientId, facilityId, number, discount, total, notes, session.id],
+    /* 🛡️ TIERS PAYANT (V2.7) : si le patient est assuré, l'assureur prend sa
+       part (taux de l'assureur, ex : 80 %) et le patient ne paie que le reste.
+       Une feuille de soins FS-ANNEE-XXXX est générée pour la réclamation. */
+    let insurerId: number | null = null;
+    let insurerShare = 0;
+    let insuredNumber: string | null = null;
+    let insurerStatus = "none";
+    let careSheet: string | null = null;
+    if (body.insurerId) {
+      const ins = await pool.query(`SELECT id, rate FROM insurers WHERE id = $1`, [parseInt(body.insurerId)]);
+      if (ins.rows[0]) {
+        insurerId = ins.rows[0].id;
+        insurerShare = Math.round((total * Number(ins.rows[0].rate)) / 100);
+        insuredNumber = body.insuredNumber ? String(body.insuredNumber).trim().slice(0, 100) : null;
+        insurerStatus = "a_reclamer";
+        const seqFs = await pool.query(
+          `SELECT COUNT(*)::int AS n FROM invoices
+           WHERE facility_id = $1 AND EXTRACT(year FROM created_at) = $2 AND care_sheet_number IS NOT NULL`,
+          [facilityId, year],
+        );
+        careSheet = `FS-${year}-${String((seqFs.rows[0]?.n ?? 0) + 1).padStart(4, "0")}`;
+      }
+    }
+
+    const insInv = await pool.query(
+      `INSERT INTO invoices (patient_id, facility_id, number, discount_fcfa, total_fcfa, paid_fcfa, status, notes, created_by,
+        insurer_id, insurer_share_fcfa, insured_number, care_sheet_number, insurer_status)
+       VALUES ($1,$2,$3,$4,$5,0,'unpaid',$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+      [patientId, facilityId, number, discount, total, notes, session.id,
+        insurerId, insurerShare, insuredNumber, careSheet, insurerStatus],
     );
-    const invoiceId = ins.rows[0].id as number;
+    const invoiceId = insInv.rows[0].id as number;
 
     for (const it of items) {
       await pool.query(

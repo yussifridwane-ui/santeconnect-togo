@@ -110,6 +110,7 @@ export async function GET(
         email: p.email,
         medicalNotes: p.medical_notes,
         insurerName: p.insurer_name,
+        insuredNumber: p.insured_number,
         coverageStatus: p.coverage_status,
       },
       // 🏥 Coordonnées professionnelles (en-tête officielle des documents)

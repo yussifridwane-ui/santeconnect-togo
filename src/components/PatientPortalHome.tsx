@@ -34,6 +34,7 @@ interface PortalDossier {
   bloodType: string | null;
   medicalNotes: string | null;
   insurerName: string | null;
+  insuredNumber?: string | null;
   coverageStatus: string | null;
 }
 
@@ -630,6 +631,25 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
               <div><p className="text-xs text-gray-500">Groupe sanguin</p><p className="text-sm font-semibold">{dossier.bloodType || "—"}</p></div>
               <div><p className="text-xs text-gray-500">Assurance</p><p className="text-sm font-semibold">{dossier.insurerName || "—"}</p></div>
             </div>
+
+            {/* 🛡️ Bloc assurance (V2.7) — détails couverture + accès compte INAM */}
+            {dossier.insurerName && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-2">
+                <p className="text-xs font-bold text-indigo-700 uppercase">🛡️ Ma couverture maladie</p>
+                <div className="text-sm text-indigo-900 space-y-1">
+                  <p>Assureur : <b>{dossier.insurerName}</b></p>
+                  {dossier.insuredNumber && <p>N° d'assuré : <b className="font-mono">{dossier.insuredNumber}</b></p>}
+                  <p>Statut de couverture : <b>{dossier.coverageStatus || "à vérifier"}</b></p>
+                  <p className="text-xs text-indigo-500">Au centre, tu ne paies que ta petite part — l'assureur règle le reste directement.</p>
+                </div>
+                {/inam/i.test(dossier.insurerName) && (
+                  <a href="https://amu.inam.tg/" target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold">
+                    💳 Accéder à mon compte AMU-INAM (amu.inam.tg) →
+                  </a>
+                )}
+              </div>
+            )}
 
             {dossier.medicalNotes && (
               <div className="bg-red-50 border border-red-100 rounded-xl p-4">

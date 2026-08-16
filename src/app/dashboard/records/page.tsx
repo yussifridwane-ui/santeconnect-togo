@@ -41,7 +41,7 @@ interface Metric { id: number; metric: string; value: number | null; value2: num
 interface JournalEntry { id: number; entry_date: string; mood: number | null; symptoms: string | null; note: string | null; }
 interface DocMeta { id: number; kind: string; title: string; mime: string; size_bytes: number; created_at: string; uploaded_by_name?: string | null; }
 interface Dme {
-  patient: { id: number; recordNumber: string | null; fullName: string; dateOfBirth: string | null; gender: string | null; bloodType: string | null; medicalNotes: string | null; insurerName: string | null; coverageStatus: string | null; };
+  patient: { id: number; recordNumber: string | null; fullName: string; dateOfBirth: string | null; gender: string | null; bloodType: string | null; medicalNotes: string | null; insurerName: string | null; insuredNumber?: string | null; coverageStatus: string | null; };
   professional: { facilityName: string | null; facilityType: string | null; facilityAddress: string | null; facilityCity: string | null; lastDoctor: string | null; };
   consultations: Consultation[];
   ordonnances: Ordonnance[];
@@ -228,6 +228,7 @@ export default function RecordsPage() {
       </div>
       <h1>ORDONNANCE</h1>
       <div class="pat">Patient(e) : <b>${esc(dme.patient.fullName)}</b> · ${ageOf(dme.patient.dateOfBirth)}${dme.patient.recordNumber ? ` · N° ${esc(dme.patient.recordNumber)}` : ""}<br/>
+      ${dme.patient.insurerName ? `Assurance : <b>🛡️ ${esc(dme.patient.insurerName)}</b>${dme.patient.insuredNumber ? ` · N° assuré : <b>${esc(dme.patient.insuredNumber)}</b>` : ""}${dme.patient.coverageStatus ? ` · Couverture : ${esc(dme.patient.coverageStatus)}` : ""}<br/>` : ""}
       Date : ${format(new Date(o.createdAt), "dd MMMM yyyy", { locale: fr })}</div>
       <table><thead><tr><th>#</th><th>Médicament</th><th>Dosage</th><th>Posologie</th><th>Fréquence</th><th>Durée</th></tr></thead><tbody>${rows}</tbody></table>
       ${o.items.some((i) => i.instructions) ? `<div class="instr">${o.items.filter((i) => i.instructions).map((i) => `• <b>${esc(i.medication)}</b> : ${esc(i.instructions)}`).join("<br/>")}</div>` : ""}
