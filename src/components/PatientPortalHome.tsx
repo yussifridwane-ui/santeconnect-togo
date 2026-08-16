@@ -37,6 +37,25 @@ interface PortalDossier {
   coverageStatus: string | null;
 }
 
+interface PCondition { id: number; name: string; icd_code: string | null; diagnosed_year: number | null; status: string; }
+interface PMed { id: number; name: string; dosage: string | null; posology: string | null; frequency: string | null; }
+interface PAllergy { id: number; substance: string; reaction: string | null; severity: string | null; }
+interface PDoc { id: number; kind: string; title: string; mime: string; size_bytes: number; created_at: string; }
+interface JEntry { id: number; entry_date: string; mood: number | null; symptoms: string | null; note: string | null; }
+interface MetricRow { id: number; metric: string; value: number | null; value2: number | null; unit: string | null; taken_at: string; }
+
+const METRIC_OPTS: { k: string; label: string; unit: string; dual?: boolean }[] = [
+  { k: "poids", label: "⚖️ Poids", unit: "kg" },
+  { k: "glycemie", label: "🩸 Glycémie", unit: "g/L" },
+  { k: "tension", label: "🩺 Tension", unit: "mmHg", dual: true },
+  { k: "temperature", label: "🌡️ Température", unit: "°C" },
+  { k: "pouls", label: "💓 Pouls", unit: "/min" },
+  { k: "spo2", label: "🫁 SpO₂", unit: "%" },
+  { k: "douleur", label: "😣 Douleur", unit: "/10" },
+  { k: "sommeil", label: "😴 Sommeil", unit: "h" },
+];
+const MOODS = ["😫", "😕", "😐", "🙂", "😄"];
+
 const APT_LABELS: Record<string, { label: string; cls: string }> = {
   pending: { label: "🟡 En attente", cls: "bg-amber-100 text-amber-800" },
   confirmed: { label: "✅ Confirmé", cls: "bg-emerald-100 text-emerald-800" },
@@ -71,6 +90,24 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
   const [token, setToken] = useState("");
   const [dossier, setDossier] = useState<PortalDossier | null>(null);
   const [exams, setExams] = useState<PortalExam[]>([]);
+  const [conds, setConds] = useState<PCondition[]>([]);
+  const [meds, setMeds] = useState<PMed[]>([]);
+  const [alls, setAlls] = useState<PAllergy[]>([]);
+  const [docs, setDocs] = useState<PDoc[]>([]);
+
+  /* Journal & suivi (visibles sans le code — ce sont tes propres saisies) */
+  const [journal, setJournal] = useState<JEntry[]>([]);
+  const [jMood, setJMood] = useState(3);
+  const [jSymptoms, setJSymptoms] = useState("");
+  const [jNote, setJNote] = useState("");
+  const [jBusy, setJBusy] = useState(false);
+  const [metrics, setMetrics] = useState<MetricRow[]>([]);
+  const [latest, setLatest] = useState<MetricRow[]>([]);
+  const [mKey, setMKey] = useState("poids");
+  const [mVal, setMVal] = useState("");
+  const [mVal2, setMVal2] = useState("");
+  const [mBusy, setMBusy] = useState(false);
+  const [healthMsg, setHealthMsg] = useState("");
 
   useEffect(() => {
     fetch("/api/appointments")
@@ -86,7 +123,23 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
         else setGate(d.hasCode ? "locked" : "create");
       })
       .catch(() => setGate("locked"));
+
+    refreshHealth();
   }, []);
+
+  const refreshHealth = () => {
+    fetch("/api/patient-portal/journal")
+      .then((r) => r.json())
+      .then((d) => setJournal(Array.isArray(d.entries) ? d.entries : []))
+      .catch(() => {});
+    fetch("/api/patient-portal/metrics")
+      .then((r) => r.json())
+      .then((d) => {
+        setMetrics(Array.isArray(d.metrics) ? d.metrics : []);
+        setLatest(Array.isArray(d.latest) ? d.latest : []);
+      })
+      .catch(() => {});
+  };
 
   const fetchDossier = useCallback(async (dossierToken: string) => {
     const res = await fetch("/api/patient-portal/dossier", {
@@ -96,6 +149,10 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
     if (!res.ok) throw new Error(data.error || "Impossible d'ouvrir le dossier");
     setDossier(data.patient);
     setExams(Array.isArray(data.exams) ? data.exams : []);
+    setConds(Array.isArray(data.conditions) ? data.conditions : []);
+    setMeds(Array.isArray(data.medications) ? data.medications : []);
+    setAlls(Array.isArray(data.allergies) ? data.allergies : []);
+    setDocs(Array.isArray(data.documents) ? data.documents : []);
     setGate("open");
   }, []);
 
@@ -159,6 +216,53 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
     setDossier(null);
     setExams([]);
     setGate("locked");
+  };
+
+  /* V2.4 : journal quotidien + mesures de suivi */
+  const saveJournal = async () => {
+    setHealthMsg("");
+    if (!jNote.trim() && !jSymptoms.trim()) { setHealthMsg("Écris au moins une note ou un symptôme."); return; }
+    setJBusy(true);
+    try {
+      const res = await fetch("/api/patient-portal/journal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mood: jMood, symptoms: jSymptoms, note: jNote }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Erreur");
+      setJNote(""); setJSymptoms("");
+      setHealthMsg("✅ Journal du jour enregistré !");
+      refreshHealth();
+    } catch (e) { setHealthMsg((e as Error).message); } finally { setJBusy(false); }
+  };
+
+  const saveMetric = async () => {
+    setHealthMsg("");
+    const cfg = METRIC_OPTS.find((m) => m.k === mKey)!;
+    if (!mVal || (cfg.dual && !mVal2)) { setHealthMsg("Saisis la mesure complète."); return; }
+    setMBusy(true);
+    try {
+      const res = await fetch("/api/patient-portal/metrics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ metric: mKey, value: mVal, value2: mVal2 || undefined }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Erreur");
+      setMVal(""); setMVal2("");
+      setHealthMsg("✅ Mesure enregistrée !");
+      refreshHealth();
+    } catch (e) { setHealthMsg((e as Error).message); } finally { setMBusy(false); }
+  };
+
+  const openDoc = async (id: number) => {
+    const res = await fetch(`/api/documents/${id}`, { headers: { "x-dossier-token": token } });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   };
 
   /* V2.3 : le patient confirme sa présence en 1 clic — sans appeler personne */
@@ -238,6 +342,99 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
             })}
           </div>
         )}
+      </div>
+
+      {/* 📝 Journal de santé & suivi — tes propres saisies (sans code) */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📝</span>
+          <h2 className="font-bold text-gray-900">Journal & suivi de santé</h2>
+        </div>
+        {healthMsg && (
+          <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800">{healthMsg}</div>
+        )}
+
+        {/* Comment vas-tu aujourd'hui ? */}
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-500 uppercase">Comment vas-tu aujourd'hui ?</p>
+          <div className="flex gap-2">
+            {MOODS.map((m, i) => (
+              <button
+                key={i}
+                onClick={() => setJMood(i + 1)}
+                className={`w-11 h-11 rounded-xl text-xl border-2 transition-all ${jMood === i + 1 ? "border-emerald-500 bg-emerald-50 scale-110" : "border-gray-100 bg-white"}`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <input
+            value={jSymptoms}
+            onChange={(e) => setJSymptoms(e.target.value)}
+            placeholder="Symptômes du jour (ex. : maux de tête, fatigue)"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+          />
+          <textarea
+            value={jNote}
+            onChange={(e) => setJNote(e.target.value)}
+            rows={2}
+            placeholder="Note libre… (ton équipe médicale suit ton évolution dans le temps)"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+          />
+          <button onClick={saveJournal} disabled={jBusy} className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            {jBusy ? <Loader2 size={16} className="animate-spin" /> : "💾 Écrire dans mon journal du jour"}
+          </button>
+          {journal.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              {journal.slice(0, 3).map((j) => (
+                <div key={j.id} className="text-xs bg-gray-50 border border-gray-100 rounded-lg p-2.5">
+                  <div className="flex items-center gap-1.5 text-gray-400">
+                    <span className="text-sm">{j.mood ? MOODS[j.mood - 1] : "🗓️"}</span>
+                    {format(new Date(j.entry_date), "EEEE d MMMM", { locale: fr })}
+                  </div>
+                  {j.symptoms && <p className="text-gray-600 mt-0.5">🩹 {j.symptoms}</p>}
+                  {j.note && <p className="text-gray-500 mt-0.5">{j.note}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Mesures */}
+        <div className="space-y-2 pt-2 border-t border-gray-100">
+          <p className="text-xs font-bold text-gray-500 uppercase">📈 Saisir une mesure</p>
+          {latest.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {latest.map((m) => (
+                <span key={m.metric} className="px-2.5 py-1 bg-emerald-50 text-emerald-800 rounded-lg text-[11px] font-semibold">
+                  {METRIC_OPTS.find((o) => o.k === m.metric)?.label || m.metric} : {m.value}{m.value2 ? `/${m.value2}` : ""} {m.unit}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="grid grid-cols-3 gap-2">
+            <select value={mKey} onChange={(e) => setMKey(e.target.value)} className="col-span-3 sm:col-span-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white">
+              {METRIC_OPTS.map((o) => <option key={o.k} value={o.k}>{o.label}</option>)}
+            </select>
+            <input
+              value={mVal}
+              onChange={(e) => setMVal(e.target.value.replace(/[^0-9.,]/g, ""))}
+              placeholder={METRIC_OPTS.find((o) => o.k === mKey)?.dual ? "Systole (12)" : `Valeur (${METRIC_OPTS.find((o) => o.k === mKey)?.unit})`}
+              className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-center"
+            />
+            {METRIC_OPTS.find((o) => o.k === mKey)?.dual && (
+              <input
+                value={mVal2}
+                onChange={(e) => setMVal2(e.target.value.replace(/[^0-9.,]/g, ""))}
+                placeholder="Diastole (8)"
+                className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-center"
+              />
+            )}
+          </div>
+          <button onClick={saveMetric} disabled={mBusy} className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
+            {mBusy ? <Loader2 size={16} className="animate-spin" /> : "➕ Enregistrer la mesure"}
+          </button>
+        </div>
       </div>
 
       {/* 🔒 Dossier médical — derrière le code */}
@@ -369,6 +566,60 @@ export default function PatientPortalHome({ userName }: { userName: string }) {
                 </div>
               )}
             </div>
+
+            {/* 🧬 Profil santé unifié */}
+            {(conds.length > 0 || meds.length > 0 || alls.length > 0) && (
+              <div className="space-y-3 pt-1">
+                <h3 className="font-bold text-gray-900 text-sm">🧬 Mon profil de santé</h3>
+                {alls.length > 0 && (
+                  <div className="space-y-1.5">
+                    {alls.map((a) => (
+                      <div key={a.id} className="bg-red-50 border border-red-100 rounded-lg px-3 py-2 text-sm">
+                        <b className="text-red-800">⚠️ Allergie : {a.substance}</b>
+                        {a.reaction && <span className="text-red-600 text-xs"> — {a.reaction}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {conds.map((c) => (
+                  <div key={c.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm flex flex-wrap gap-2 items-center">
+                    <span className="font-semibold text-gray-900">{c.name}</span>
+                    {c.icd_code && <span className="text-xs text-gray-400">({c.icd_code})</span>}
+                    {c.diagnosed_year && <span className="text-xs text-gray-400">· depuis {c.diagnosed_year}</span>}
+                    <span className={`ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full ${c.status === "resolved" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                      {c.status === "resolved" ? "guérie ✓" : "en cours"}
+                    </span>
+                  </div>
+                ))}
+                {meds.map((m) => (
+                  <div key={m.id} className="border border-gray-100 rounded-lg px-3 py-2 text-sm">
+                    <span className="font-semibold text-gray-900">💊 {m.name}{m.dosage ? ` ${m.dosage}` : ""}</span>
+                    {[m.posology, m.frequency].filter(Boolean).length > 0 && (
+                      <span className="text-xs text-gray-500"> — {[m.posology, m.frequency].filter(Boolean).join(" · ")}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 🗂️ Documents & rapports */}
+            {docs.length > 0 && (
+              <div className="space-y-2 pt-1">
+                <h3 className="font-bold text-gray-900 text-sm">🗂️ Mes documents & rapports</h3>
+                {docs.map((d) => (
+                  <div key={d.id} className="flex items-center gap-2.5 border border-gray-100 rounded-xl p-3">
+                    <LockOpen size={16} className="text-emerald-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{d.title}</p>
+                      <p className="text-xs text-gray-400">{format(new Date(d.created_at), "dd MMM yyyy", { locale: fr })} · {Math.round((d.size_bytes || 0) / 1024)} Ko</p>
+                    </div>
+                    <button onClick={() => openDoc(d.id)} className="text-xs font-bold text-emerald-700 hover:underline shrink-0">
+                      Ouvrir →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <p className="text-xs text-gray-400 flex items-center gap-1.5">
               <ShieldCheck size={14} /> Ton dossier se reverrouille automatiquement dans 15 minutes.

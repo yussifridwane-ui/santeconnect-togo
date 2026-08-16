@@ -43,7 +43,7 @@ export async function GET(
     }
     const p = prow.rows[0];
 
-    const [cons, ords, lab, img] = await Promise.all([
+    const [cons, ords, lab, img, cond, meds, alg, soc, fam, contra, mets, jour] = await Promise.all([
       pool.query(
         `SELECT c.*, d.full_name AS doctor_name
          FROM consultations c LEFT JOIN users d ON d.id = c.doctor_id
@@ -66,6 +66,14 @@ export async function GET(
          FROM imaging_exams WHERE patient_id = $1`,
         [pid],
       ),
+      pool.query(`SELECT id, name, icd_code, diagnosed_year, status, notes FROM patient_conditions WHERE patient_id = $1 ORDER BY diagnosed_year DESC NULLS LAST`, [pid]),
+      pool.query(`SELECT id, name, dosage, posology, frequency, since, active, notes FROM patient_medications WHERE patient_id = $1 ORDER BY active DESC, created_at DESC`, [pid]),
+      pool.query(`SELECT id, substance, reaction, severity FROM patient_allergies WHERE patient_id = $1 ORDER BY severity DESC NULLS LAST`, [pid]),
+      pool.query(`SELECT tobacco, alcohol, activity, notes FROM patient_social_history WHERE patient_id = $1`, [pid]),
+      pool.query(`SELECT id, relative, condition, notes FROM patient_family_history WHERE patient_id = $1 ORDER BY id`, [pid]),
+      pool.query(`SELECT id, item, notes FROM patient_contraindications WHERE patient_id = $1 ORDER BY id`, [pid]),
+      pool.query(`SELECT id, metric, value, value2, unit, taken_at, source FROM patient_metrics WHERE patient_id = $1 ORDER BY taken_at DESC LIMIT 100`, [pid]),
+      pool.query(`SELECT id, entry_date, mood, symptoms, note FROM patient_journal WHERE patient_id = $1 ORDER BY entry_date DESC LIMIT 30`, [pid]),
     ]);
 
     let items: Record<string, unknown>[] = [];
@@ -141,6 +149,15 @@ export async function GET(
         items: items.filter((i) => i.prescription_id === o.id),
       })),
       exams,
+      // 🧬 V2.4 — Profil de santé structuré + suivi + journal
+      conditions: cond.rows,
+      medications: meds.rows,
+      allergies: alg.rows,
+      socialHistory: soc.rows[0] || null,
+      familyHistory: fam.rows,
+      contraindications: contra.rows,
+      metrics: mets.rows,
+      journal: jour.rows,
     });
   } catch (error) {
     console.error("Get DME error:", error);

@@ -60,6 +60,14 @@ export async function GET(request: NextRequest) {
       [p.id],
     );
 
+    /* 🧬 Profil de santé unifié (lecture patient — volet non confidentiel du dossier) */
+    const [cond, meds, alg, docs] = await Promise.all([
+      pool.query(`SELECT id, name, icd_code, diagnosed_year, status FROM patient_conditions WHERE patient_id = $1 ORDER BY diagnosed_year DESC NULLS LAST`, [p.id]),
+      pool.query(`SELECT id, name, dosage, posology, frequency, since FROM patient_medications WHERE patient_id = $1 AND active = true ORDER BY created_at DESC`, [p.id]),
+      pool.query(`SELECT id, substance, reaction, severity FROM patient_allergies WHERE patient_id = $1`, [p.id]),
+      pool.query(`SELECT id, kind, title, mime, size_bytes, created_at FROM documents WHERE patient_id = $1 ORDER BY created_at DESC LIMIT 30`, [p.id]),
+    ]);
+
     return NextResponse.json({
       patient: {
         recordNumber: p.record_number,
@@ -74,6 +82,10 @@ export async function GET(request: NextRequest) {
         coverageStatus: p.coverage_status,
       },
       exams: exams.rows,
+      conditions: cond.rows,
+      medications: meds.rows,
+      allergies: alg.rows,
+      documents: docs.rows,
     });
   } catch (error) {
     console.error("Portal dossier error:", error);

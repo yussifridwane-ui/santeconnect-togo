@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import type { ReactNode } from "react";
 import {
   FileText, Search, Loader2, Plus, Printer, Stethoscope, Pill, FlaskConical,
   ClipboardList, X, ChevronLeft, AlertTriangle,
@@ -31,13 +32,35 @@ interface Ordonnance {
   createdAt: string; doctorName: string | null; items: OrdoItem[];
 }
 interface DmeExam { kind: "labo" | "imagerie"; id: number; exam_type: string; status: string; result: string | null; created_at: string; validated_at: string | null; }
+interface Condition { id: number; name: string; icd_code: string | null; diagnosed_year: number | null; status: string; notes: string | null; }
+interface Medication { id: number; name: string; dosage: string | null; posology: string | null; frequency: string | null; since: string | null; active: boolean; notes: string | null; }
+interface Allergy { id: number; substance: string; reaction: string | null; severity: string | null; }
+interface FamilyEntry { id: number; relative: string; condition: string; notes: string | null; }
+interface Contra { id: number; item: string; notes: string | null; }
+interface Metric { id: number; metric: string; value: number | null; value2: number | null; unit: string | null; taken_at: string; source: string; }
+interface JournalEntry { id: number; entry_date: string; mood: number | null; symptoms: string | null; note: string | null; }
+interface DocMeta { id: number; kind: string; title: string; mime: string; size_bytes: number; created_at: string; uploaded_by_name?: string | null; }
 interface Dme {
   patient: { id: number; recordNumber: string | null; fullName: string; dateOfBirth: string | null; gender: string | null; bloodType: string | null; medicalNotes: string | null; insurerName: string | null; coverageStatus: string | null; };
   professional: { facilityName: string | null; facilityType: string | null; facilityAddress: string | null; facilityCity: string | null; lastDoctor: string | null; };
   consultations: Consultation[];
   ordonnances: Ordonnance[];
   exams: DmeExam[];
+  conditions: Condition[];
+  medications: Medication[];
+  allergies: Allergy[];
+  socialHistory: { tobacco: string | null; alcohol: string | null; activity: string | null; notes: string | null } | null;
+  familyHistory: FamilyEntry[];
+  contraindications: Contra[];
+  metrics: Metric[];
+  journal: JournalEntry[];
 }
+
+const METRIC_LABEL: Record<string, string> = {
+  poids: "⚖️ Poids", glycemie: "🩸 Glycémie", tension: "🩺 Tension", temperature: "🌡️ Température",
+  pouls: "💓 Pouls", spo2: "🫁 SpO₂", douleur: "😣 Douleur", sommeil: "😴 Sommeil",
+};
+const MOOD_EMOJI: Record<number, string> = { 1: "😫", 2: "😕", 3: "😐", 4: "🙂", 5: "😄" };
 
 const fcfa = (d: string | null) => d ? format(new Date(d), "dd MMM yyyy", { locale: fr }) : "—";
 const ageOf = (dob: string | null) => {
@@ -70,7 +93,7 @@ export default function RecordsPage() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [dme, setDme] = useState<Dme | null>(null);
   const [loadingDme, setLoadingDme] = useState(false);
-  const [tab, setTab] = useState<"aapercu" | "consultations" | "ordonnances" | "examens">("aapercu");
+  const [tab, setTab] = useState<"aapercu" | "consultations" | "ordonnances" | "examens" | "sante" | "journal" | "rapports">("aapercu");
 
   const [showConsultForm, setShowConsultForm] = useState(false);
   const [consult, setConsult] = useState({ ...emptyConsult });
@@ -109,6 +132,27 @@ export default function RecordsPage() {
     setShowOrdoForm(false);
     setFormError("");
     loadDme(p.id);
+  };
+
+  /* Mutations profil de santé (V2.4) */
+  const sante = async (kind: string, op: "add" | "del", payload: Record<string, unknown>) => {
+    if (!selectedId) return;
+    setSaving(true);
+    setFormError("");
+    try {
+      const res = await fetch(`/api/patients/${selectedId}/sante`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind, op, ...payload }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur");
+      await loadDme(selectedId);
+    } catch (e) {
+      setFormError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const saveConsultation = async () => {
@@ -290,6 +334,9 @@ export default function RecordsPage() {
               ["consultations", `🩺 Consultations (${dme.consultations.length})`, Stethoscope],
               ["ordonnances", `💊 Ordonnances (${dme.ordonnances.length})`, Pill],
               ["examens", `🧪 Examens (${dme.exams.length})`, FlaskConical],
+              ["sante", `🧬 Profil santé (${dme.conditions.length + dme.allergies.length})`, ClipboardList],
+              ["journal", `📝 Journal & suivi (${dme.journal.length})`, ClipboardList],
+              ["rapports", "🗂️ Rapports", ClipboardList],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -542,7 +589,309 @@ export default function RecordsPage() {
               })}
             </div>
           )}
+          {/* ================= PROFIL SANTÉ (V2.4) ================= */}
+          {tab === "sante" && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <SanteSection
+                title="Conditions de santé" icon="🩺" canWrite={canWrite}
+                fields={[
+                  { key: "name", label: "Condition *", ph: "Ex. : Diabète type 2" },
+                  { key: "icdCode", label: "Code CIM", ph: "Ex. : 5A11" },
+                  { key: "diagnosedYear", label: "Année diagnostic", ph: "2022" },
+                ]}
+                onAdd={(v) => sante("condition", "add", v)}
+              >
+                {dme.conditions.map((c) => (
+                  <Row key={c.id} title={c.name + (c.icd_code ? ` (${c.icd_code})` : "")} sub={`${c.diagnosed_year || "—"} · ${c.status === "resolved" ? "guérie ✓" : "en cours"}`} onDel={canWrite ? () => sante("condition", "del", { id: c.id }) : undefined} />
+                ))}
+                {dme.conditions.length === 0 && <Empty text="Aucune condition déclarée." />}
+              </SanteSection>
+
+              <SanteSection
+                title="Médicaments actuels" icon="💊" canWrite={canWrite}
+                fields={[
+                  { key: "name", label: "Médicament *", ph: "Ex. : Metformine" },
+                  { key: "dosage", label: "Dosage", ph: "1000 mg" },
+                  { key: "posology", label: "Posologie", ph: "1 cp matin et soir" },
+                  { key: "since", label: "Depuis", ph: "01/01/2022" },
+                ]}
+                onAdd={(v) => sante("medication", "add", v)}
+              >
+                {dme.medications.map((m) => (
+                  <Row key={m.id} title={`${m.name}${m.dosage ? ` ${m.dosage}` : ""}`} sub={[m.posology, m.frequency, m.since ? `depuis le ${fcfa(m.since)}` : ""].filter(Boolean).join(" · ") || (m.active ? "En cours" : "Arrêté")} onDel={canWrite ? () => sante("medication", "del", { id: m.id }) : undefined} />
+                ))}
+                {dme.medications.length === 0 && <Empty text="Aucun médicament au long cours." />}
+              </SanteSection>
+
+              <SanteSection
+                title="Allergies" icon="⚠️" canWrite={canWrite}
+                fields={[
+                  { key: "substance", label: "Substance *", ph: "Ex. : Pénicilline, arachide" },
+                  { key: "reaction", label: "Réaction", ph: "Ex. : urticaire, choc" },
+                  { key: "severity", label: "Gravité", ph: "legere / moderee / severe" },
+                ]}
+                onAdd={(v) => sante("allergy", "add", v)}
+              >
+                {dme.allergies.map((a) => (
+                  <Row key={a.id} title={`${a.substance}${a.severity ? ` (${a.severity === "severe" ? "⚠️ sévère" : a.severity})` : ""}`} sub={a.reaction || ""} red onDel={canWrite ? () => sante("allergy", "del", { id: a.id }) : undefined} />
+                ))}
+                {dme.allergies.length === 0 && <Empty text="Aucune allergie connue." />}
+              </SanteSection>
+
+              <SanteSection
+                title="Antécédents familiaux" icon="👨‍👩‍👧" canWrite={canWrite}
+                fields={[
+                  { key: "relative", label: "Membre *", ph: "Ex. : mère" },
+                  { key: "condition", label: "Condition *", ph: "Ex. : hypertension" },
+                ]}
+                onAdd={(v) => sante("family", "add", v)}
+              >
+                {dme.familyHistory.map((f) => (
+                  <Row key={f.id} title={f.condition} sub={f.relative} onDel={canWrite ? () => sante("family", "del", { id: f.id }) : undefined} />
+                ))}
+                {dme.familyHistory.length === 0 && <Empty text="Rien de déclaré." />}
+              </SanteSection>
+
+              <SanteSection
+                title="Contre-indications" icon="🚫" canWrite={canWrite}
+                fields={[{ key: "item", label: "Élément *", ph: "Ex. : AINS chez l'ulcéreux" }]}
+                onAdd={(v) => sante("contraindication", "add", v)}
+              >
+                {dme.contraindications.map((c) => (
+                  <Row key={c.id} title={c.item} sub={c.notes || ""} red onDel={canWrite ? () => sante("contraindication", "del", { id: c.id }) : undefined} />
+                ))}
+                {dme.contraindications.length === 0 && <Empty text="Aucune contre-indication." />}
+              </SanteSection>
+
+              <SanteSection
+                title="Histoire sociale" icon="🌱" canWrite={canWrite}
+                fields={[
+                  { key: "tobacco", label: "Tabac", ph: "Ex. : 1 paquet/j depuis 10 ans" },
+                  { key: "alcohol", label: "Alcool", ph: "Ex. : occasionnel" },
+                  { key: "activity", label: "Activité physique", ph: "Ex. : marche 3×/sem" },
+                  { key: "notes", label: "Notes sociales", ph: "Ex. : travail de nuit" },
+                ]}
+                addLabel="Mettre à jour"
+                onAdd={(v) => sante("social", "add", v)}
+              >
+                {dme.socialHistory ? (
+                  <>
+                    {dme.socialHistory.tobacco && <Row title="🚬 Tabac" sub={dme.socialHistory.tobacco} />}
+                    {dme.socialHistory.alcohol && <Row title="🍺 Alcool" sub={dme.socialHistory.alcohol} />}
+                    {dme.socialHistory.activity && <Row title="🏃 Activité" sub={dme.socialHistory.activity} />}
+                    {dme.socialHistory.notes && <Row title="📝 Notes" sub={dme.socialHistory.notes} />}
+                  </>
+                ) : (
+                  <Empty text="Non renseignée." />
+                )}
+              </SanteSection>
+            </div>
+          )}
+
+          {/* ================= JOURNAL & SUIVI (V2.4) ================= */}
+          {tab === "journal" && (
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+                <h3 className="font-bold text-gray-900">📈 Suivi de santé — mesures du patient</h3>
+                {(() => {
+                  const latest: Record<string, Metric> = {};
+                  for (const m of dme.metrics) if (!latest[m.metric]) latest[m.metric] = m;
+                  const keys = Object.keys(latest);
+                  return keys.length === 0 ? (
+                    <p className="text-sm text-gray-400">Le patient n'a pas encore saisi de mesures depuis son espace.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {keys.map((k) => {
+                        const m = latest[k];
+                        return (
+                          <span key={k} className="px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-xs font-semibold text-emerald-900">
+                            {METRIC_LABEL[k] || k} : {m.value}{m.value2 ? `/${m.value2}` : ""} {m.unit || ""}
+                            <span className="text-emerald-500 font-normal"> · {fcfa(m.taken_at)}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                {dme.metrics.length > 0 && (
+                  <details className="text-sm">
+                    <summary className="cursor-pointer text-emerald-700 font-medium text-xs">Historique (30 dernières mesures)</summary>
+                    <div className="mt-2 space-y-1">
+                      {dme.metrics.slice(0, 30).map((m) => (
+                        <p key={m.id} className="text-xs text-gray-600">
+                          {fcfa(m.taken_at)} — <b>{METRIC_LABEL[m.metric] || m.metric}</b> : {m.value}{m.value2 ? `/${m.value2}` : ""} {m.unit || ""} <span className="text-gray-400">({m.source})</span>
+                        </p>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+                <h3 className="font-bold text-gray-900">📝 Journal de santé quotidien (écrit par le patient)</h3>
+                {dme.journal.length === 0 ? (
+                  <p className="text-sm text-gray-400">Aucune entrée pour le moment.</p>
+                ) : (
+                  dme.journal.map((j) => (
+                    <div key={j.id} className="border border-gray-100 rounded-xl p-3.5">
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <span className="text-lg">{j.mood ? MOOD_EMOJI[j.mood] : "🗓️"}</span>
+                        {format(new Date(j.entry_date), "EEEE d MMMM yyyy", { locale: fr })}
+                      </div>
+                      {j.symptoms && <p className="text-sm text-gray-700 mt-1"><b>Symptômes :</b> {j.symptoms}</p>}
+                      {j.note && <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{j.note}</p>}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ================= RAPPORTS (V2.4) ================= */}
+          {tab === "rapports" && selectedId && (
+            <RapportsTab patientId={selectedId} canWrite={canWrite} />
+          )}
         </>
+      )}
+    </div>
+  );
+}
+
+/* ================================ COMPOSANTS PARTAGÉS ================================ */
+function Row({ title, sub, red, onDel }: { title: string; sub?: string; red?: boolean; onDel?: () => void }) {
+  return (
+    <div className={`flex items-start gap-2 border rounded-xl px-3 py-2 ${red ? "border-red-100 bg-red-50/50" : "border-gray-100"}`}>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-semibold ${red ? "text-red-800" : "text-gray-900"}`}>{title}</p>
+        {sub ? <p className="text-xs text-gray-500">{sub}</p> : null}
+      </div>
+      {onDel && (
+        <button onClick={onDel} title="Retirer" className="text-gray-300 hover:text-red-500 shrink-0 p-1">
+          <X size={14} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+const Empty = ({ text }: { text: string }) => <p className="text-xs text-gray-400 py-2">{text}</p>;
+
+function SanteSection({
+  title, icon, canWrite, fields, onAdd, addLabel, children,
+}: {
+  title: string; icon: string; canWrite: boolean;
+  fields: { key: string; label: string; ph?: string }[];
+  onAdd: (vals: Record<string, string>) => void;
+  addLabel?: string;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <span>{icon}</span>
+        <h3 className="font-bold text-gray-900 text-sm">{title}</h3>
+        {canWrite && (
+          <button onClick={() => setOpen((o) => !o)} className="ml-auto text-emerald-700 text-xs font-bold hover:underline">
+            {open ? "— Fermer" : "+ Ajouter"}
+          </button>
+        )}
+      </div>
+      <div className="space-y-1.5">{children}</div>
+      {open && canWrite && (
+        <div className="pt-2 border-t border-gray-100 space-y-2">
+          {fields.map((f) => (
+            <input
+              key={f.key}
+              value={vals[f.key] || ""}
+              onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })}
+              placeholder={f.label + (f.ph ? ` — ${f.ph}` : "")}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+            />
+          ))}
+          <button
+            onClick={() => { onAdd(vals); setVals({}); }}
+            className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-bold"
+          >
+            {addLabel || "Ajouter au dossier"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RapportsTab({ patientId, canWrite }: { patientId: number; canWrite: boolean }) {
+  const [docs, setDocs] = useState<DocMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    fetch(`/api/patients/${patientId}/documents`)
+      .then((r) => r.json())
+      .then((d) => setDocs(Array.isArray(d.documents) ? d.documents : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [patientId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const upload = (file: File) => {
+    setError("");
+    if (file.size > 1_800_000) { setError("Fichier trop lourd (max 1,8 Mo)."); return; }
+    const title = prompt("Titre du rapport (ex. : NFS du 16/08/2026) :");
+    if (!title) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setUploading(true);
+      try {
+        const res = await fetch(`/api/patients/${patientId}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, mime: file.type || "application/octet-stream", kind: "rapport", data: reader.result }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || "Erreur d'envoi");
+        load();
+      } catch (e) { setError((e as Error).message); } finally { setUploading(false); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-bold text-gray-900">🗂️ Rapports & documents cliniques</h3>
+        {canWrite && (
+          <label className="flex items-center gap-2 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer">
+            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Déposer un rapport
+            <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} />
+          </label>
+        )}
+      </div>
+      <p className="text-xs text-gray-400">Scans/photos de résultats, ordonnances papier, comptes rendus — stockés en sécurité avec le même soin que le dossier clinique (max 1,8 Mo).</p>
+      {error && <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>}
+      {loading ? (
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-600 mx-auto" />
+      ) : docs.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-4">Aucun document déposé.</p>
+      ) : (
+        <div className="space-y-2">
+          {docs.map((d) => (
+            <div key={d.id} className="flex items-center gap-3 border border-gray-100 rounded-xl p-3">
+              <FileText size={18} className="text-emerald-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">{d.title}</p>
+                <p className="text-xs text-gray-400">{fcfa(d.created_at)} · {Math.round((d.size_bytes || 0) / 1024)} Ko{d.uploaded_by_name ? ` · par ${d.uploaded_by_name}` : ""}</p>
+              </div>
+              <a href={`/api/documents/${d.id}`} target="_blank" rel="noopener" className="text-xs font-bold text-emerald-700 hover:underline shrink-0">
+                Ouvrir →
+              </a>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

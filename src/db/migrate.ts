@@ -320,6 +320,95 @@ const STATEMENTS: string[] = [
   `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_sent_at timestamp`,
   `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_response varchar(20)`,
   `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS patient_response_at timestamp`,
+
+  /* ---------- V2.4 : DOSSIER DE SANTÉ UNIFIÉ (profil santé structuré) ---------- */
+  `CREATE TABLE IF NOT EXISTS patient_conditions (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL,
+    name varchar(255) NOT NULL,
+    icd_code varchar(20),
+    diagnosed_year integer,
+    status varchar(20) NOT NULL DEFAULT 'active',
+    notes text,
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS patient_medications (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL,
+    name varchar(255) NOT NULL,
+    dosage varchar(120),
+    posology varchar(255),
+    frequency varchar(120),
+    since date,
+    active boolean NOT NULL DEFAULT true,
+    notes text,
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS patient_allergies (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL,
+    substance varchar(160) NOT NULL,
+    reaction text,
+    severity varchar(20),
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS patient_social_history (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL UNIQUE,
+    tobacco text,
+    alcohol text,
+    activity text,
+    notes text,
+    updated_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS patient_family_history (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL,
+    relative varchar(80) NOT NULL,
+    condition varchar(255) NOT NULL,
+    notes text,
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+  `CREATE TABLE IF NOT EXISTS patient_contraindications (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL,
+    item varchar(255) NOT NULL,
+    notes text,
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+
+  /* ---------- V2.4 : SUIVI DE SANTÉ (mesures patient — source extensible : appareils/apps) ---------- */
+  `CREATE TABLE IF NOT EXISTS patient_metrics (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL,
+    metric varchar(40) NOT NULL,
+    value numeric,
+    value2 numeric,
+    unit varchar(20),
+    taken_at timestamp NOT NULL DEFAULT now(),
+    source varchar(20) NOT NULL DEFAULT 'manuel',
+    created_at timestamp NOT NULL DEFAULT now()
+  )`,
+
+  /* ---------- V2.4 : JOURNAL DE SANTÉ QUOTIDIEN (écrit par le patient) ---------- */
+  `CREATE TABLE IF NOT EXISTS patient_journal (
+    id serial PRIMARY KEY,
+    patient_id integer NOT NULL,
+    entry_date date NOT NULL DEFAULT CURRENT_DATE,
+    mood integer,
+    symptoms text,
+    note text,
+    created_at timestamp NOT NULL DEFAULT now(),
+    CONSTRAINT patient_journal_unique_day UNIQUE (patient_id, entry_date)
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS idx_conditions_patient ON patient_conditions(patient_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_medications_patient ON patient_medications(patient_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_allergies_patient ON patient_allergies(patient_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_family_patient ON patient_family_history(patient_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_contra_patient ON patient_contraindications(patient_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_metrics_patient ON patient_metrics(patient_id, metric, taken_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_journal_patient ON patient_journal(patient_id, entry_date DESC)`,
 ];
 
 let migrating: Promise<void> | null = null;
