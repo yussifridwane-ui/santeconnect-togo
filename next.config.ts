@@ -19,10 +19,12 @@ const SECURITY_HEADERS: { key: string; value: string }[] = [
     key: "Strict-Transport-Security",
     value: "max-age=31536000; includeSubDomains",
   },
-  // Aucun accès caméra/micro/géolocalisation/paiement par défaut
+  // Aucun accès micro/géoloc/paiement par défaut.
+  // CAMÉRA : autorisée pour NOTRE site uniquement (V3.1 — scanner QR des
+  // cartes d'assurance) ; toujours verrouillée pour tout site externe.
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=()",
+    value: "camera=(self), microphone=(), geolocation=(), payment=()",
   },
   // Politique de contenu : scripts/styles/images UNIQUEMENT depuis notre
   // propre domaine (+ inline nécessaire à l'hydratation Next.js).
